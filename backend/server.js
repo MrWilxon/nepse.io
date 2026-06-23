@@ -16,13 +16,7 @@ const supabase = createClient(
 
 const app = express();
 app.use(cors({
-  origin: [
-    "http://localhost:3000",
-    "http://localhost:3001",
-    "https://nepse-io.vercel.app",
-    "https://*.vercel.app",
-    "https://nepse.wilson.com.np",
-  ],
+  origin: true,
   credentials: true,
 }));
 app.use(express.json());

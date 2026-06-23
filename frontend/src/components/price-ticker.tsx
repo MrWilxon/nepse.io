@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { ArrowUpRight, ArrowDownRight, Minus, Wifi, WifiOff } from "lucide-react";
+import { safeFetch, API_BASE } from "@/lib/api";
 
 interface TickerItem {
   symbol: string;
@@ -24,7 +25,6 @@ const FALLBACK_ITEMS: TickerItem[] = [
   { symbol: "AKPL", price: 265.00, change: 4.50, changePercent: 1.73, volume: 0 },
 ];
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 const WS_BASE = API_BASE.replace(/^http/, "ws");
 
 export default function PriceTicker() {
@@ -35,19 +35,16 @@ export default function PriceTicker() {
   const reconnectRef = useRef<ReturnType<typeof setTimeout>>(null);
 
   useEffect(() => {
-    fetch(`${API_BASE}/api/companies`)
-      .then((r) => r.json())
-      .then((data: any[]) => {
-        const tickers = data.slice(0, 20).map((c: any) => ({
-          symbol: c.symbol,
-          price: c.ltp || c.latestClose || 0,
-          change: c.change || c.percentChange || 0,
-          changePercent: c.percentChange || 0,
-          volume: c.volume || 0,
-        }));
-        if (tickers.length > 0) setItems(tickers);
-      })
-      .catch(() => {});
+    safeFetch<any[]>(`${API_BASE}/api/companies`, []).then((data) => {
+      const tickers = (Array.isArray(data) ? data : []).slice(0, 20).map((c: any) => ({
+        symbol: c.symbol,
+        price: c.ltp || c.latestClose || 0,
+        change: c.change || c.percentChange || 0,
+        changePercent: c.percentChange || 0,
+        volume: c.volume || 0,
+      }));
+      if (tickers.length > 0) setItems(tickers);
+    });
 
     const connect = () => {
       try {

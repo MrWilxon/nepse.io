@@ -35,13 +35,12 @@ import type {
   HeatmapData,
   MarketStatus,
 } from "@/lib/api";
+import { safeFetch, API_BASE } from "@/lib/api";
 import { useWatchlist } from "@/lib/watchlist";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { SkeletonDashboard as DashboardSkeleton } from "@/components/skeleton";
 import RecentActivity from "@/components/recent-activity";
 import { useDashboardWidgets, WidgetSettings } from "@/components/dashboard-widgets";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
 const PAGE_SIZE = 15;
 
@@ -64,15 +63,12 @@ export default function Home() {
   const { widgets, enabled: enabledWidgets, toggleWidget, moveWidget } = useDashboardWidgets();
 
   useEffect(() => {
-    const safeFetch = (url: string, fallback: any = null) =>
-      fetch(url).then((r) => r.json()).catch(() => fallback);
-
     Promise.all([
-      safeFetch(`${API_BASE}/api/companies`, []),
-      safeFetch(`${API_BASE}/api/top-movers`, { gainers: [], losers: [], mostActive: [] }),
-      safeFetch(`${API_BASE}/api/market-summary`, null),
-      safeFetch(`${API_BASE}/api/sectors/heatmap`, []),
-      safeFetch(`${API_BASE}/api/market-status`, null),
+      safeFetch(`${API_BASE}/api/companies`, [] as CompanySummary[]),
+      safeFetch(`${API_BASE}/api/top-movers`, { gainers: [] as TopMover[], losers: [] as TopMover[], mostActive: [] as TopMover[] }),
+      safeFetch<MarketSummary | null>(`${API_BASE}/api/market-summary`, null),
+      safeFetch(`${API_BASE}/api/sectors/heatmap`, [] as HeatmapData[]),
+      safeFetch<MarketStatus | null>(`${API_BASE}/api/market-status`, null),
     ])
       .then(([companiesData, movers, summary, heat, status]) => {
         setCompanies(Array.isArray(companiesData) ? companiesData : []);

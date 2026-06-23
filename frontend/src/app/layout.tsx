@@ -232,7 +232,10 @@ function InnerLayout({ children }: { children: React.ReactNode }) {
   }, [collapsed]);
 
   useEffect(() => {
-    fetch(`${API_BASE}/api/market-status`).then(r => r.json()).then(setMarketStatus).catch(() => {});
+    fetch(`${API_BASE}/api/market-status`).then(r => {
+      if (!r.ok) return null;
+      return r.text().then(t => t ? JSON.parse(t) : null);
+    }).then(setMarketStatus).catch(() => {});
   }, []);
 
   useEffect(() => { setSidebarOpen(false); }, [pathname]);

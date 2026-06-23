@@ -69,18 +69,18 @@ export default function Home() {
 
     Promise.all([
       safeFetch(`${API_BASE}/api/companies`, []),
-      safeFetch(`${API_BASE}/api/top-movers`, []),
-      safeFetch(`${API_BASE}/api/market-summary`, {}),
+      safeFetch(`${API_BASE}/api/top-movers`, { gainers: [], losers: [], mostActive: [] }),
+      safeFetch(`${API_BASE}/api/market-summary`, null),
       safeFetch(`${API_BASE}/api/sectors/heatmap`, []),
-      safeFetch(`${API_BASE}/api/market-status`, {}),
+      safeFetch(`${API_BASE}/api/market-status`, null),
     ])
       .then(([companiesData, movers, summary, heat, status]) => {
-        setCompanies(companiesData);
-        setTopMovers(movers);
+        setCompanies(Array.isArray(companiesData) ? companiesData : []);
+        setTopMovers(movers && movers.gainers ? movers : { gainers: [], losers: [], mostActive: [] });
         setMarketSummary(summary);
-        setHeatmap(heat);
+        setHeatmap(Array.isArray(heat) ? heat : []);
         setMarketStatus(status);
-        if (companiesData.length === 0) setConnectionError(true);
+        if (!companiesData || (Array.isArray(companiesData) && companiesData.length === 0)) setConnectionError(true);
       })
       .catch(() => setConnectionError(true))
       .finally(() => setLoading(false));

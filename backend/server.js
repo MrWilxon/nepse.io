@@ -21,6 +21,7 @@ app.use(cors({
     "http://localhost:3001",
     "https://nepse-io.vercel.app",
     "https://*.vercel.app",
+    "https://nepse.wilson.com.np",
   ],
   credentials: true,
 }));

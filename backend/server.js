@@ -36,6 +36,7 @@ app.use(cors({
   credentials: true,
 }));
 app.use(express.json());
+app.get("/", (req, res) => res.json({ status: "ok", version: "2.0" }));
 
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server, path: "/ws" });
@@ -4659,16 +4660,13 @@ app.get("/api/earnings", rateLimit, (req, res) => {
 });
 
 const PORT = process.env.PORT || 4000;
-preloadAllCompanyData().then(() => {
-  server.listen(PORT, () => {
-    console.log(`Backend API running on http://localhost:${PORT}`);
-    console.log(`WebSocket running on ws://localhost:${PORT}/ws`);
-  });
-}).catch((err) => {
-  console.error("Failed to preload data from Supabase:", err.message);
-  console.log("Starting server with empty data cache...");
-  server.listen(PORT, () => {
-    console.log(`Backend API running on http://localhost:${PORT} (no data loaded)`);
-    console.log(`WebSocket running on ws://localhost:${PORT}/ws`);
+server.listen(PORT, () => {
+  console.log(`Backend API running on http://localhost:${PORT}`);
+  console.log(`WebSocket running on ws://localhost:${PORT}/ws`);
+  preloadAllCompanyData().then(() => {
+    console.log("Data preload complete");
+  }).catch((err) => {
+    console.error("Failed to preload data from Supabase:", err.message);
+    console.log("Running with empty data cache");
   });
 });

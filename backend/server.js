@@ -312,6 +312,74 @@ const CATEGORY_MAP = {
   ULI: "Life Insurance",
 };
 
+const NAME_MAP = {
+  ADBL: "Agricultural Development Bank", NMB: "Nepal Merchantile Bank", SBL: "Siddhartha Bank", NCCB: "Nepal Credit & Commerce Bank",
+  KBL: "Kumari Bank", LBL: "Lumbini Bank", MBL: "Machhapuchhre Bank", EBL: "Everest Bank", NBB: "Nepal Bangla Bank",
+  SBI: "SBI Bank", HBL: "Himalayan Bank", SCB: "Standard Chartered Bank", NIB: "Nepal Investment Bank",
+  NABIL: "Nabil Bank", CZBIL: "Citizens Intl Bank", PCBL: "Prime Commercial Bank", SRBL: "Sunrise Bank",
+  SANIMA: "Sanima Bank", MEGA: "Mega Bank", CBL: "Century Commercial Bank", CCBL: "Central Jalpa Devi",
+  NBL: "Nepal Bank", GBIME: "Global IME Bank", NICA: "Nepal Investment Mega Capital", PRVU: "Prabhu Bank",
+  BOKL: "Bank of Kathmandu", CORBL: "Coronation Bank", EDBL: "Excel Dev Bank", GBBL: "Garima Bikas Bank",
+  GRDBL: "Gurans Dev Bank", JBBL: "Jeevan Bikas Bank", KRBL: "Karnali Bank", KSBBL: "Koshi Sahakari",
+  LBBL: "Lumbini Bikas Bank", MDB: "Muktinath Dev Bank", MLBL: "Mahalaxmi Bikas", MNBBL: "Mahalaxmi Bikas",
+  NABBC: "Nepal Bank & Finance", SADBL: "Sahara Dev Bank", SAPDBL: "Saptagandaki Dev Bank",
+  SHBL: "Shangrila Dev Bank", SHINE: "Shine Resources Dev", SINDU: "Sindhu Bikas Bank",
+  BFC: "Best Finance", CFCL: "Chhimek Finance", GFCL: "Ghodighoda Finance", GMFIL: "Global Microfinance",
+  GUFL: "Guheswori Finance", ICFC: "ICFC Finance", JFL: "Janaki Finance", MFIL: "Manushi Finance",
+  MPFL: "Multipurpose Finance", NFS: "National Finance", PFL: "People's Finance", PROFL: "Progress Finance",
+  RLFL: "Reliable Finance", SFCL: "Samriddhi Finance", SIFC: "Siddhartha Finance",
+  CGH: "Chhimang Himalayan Resort", OHL: "Oriental Hotel", SHL: "Soaltee Hotel", TRH: "Tiger Mountain Resort",
+  AHPC: "Arun Valley Hydropower", AKJCL: "Arun Kabeli Power", AKPL: "Arun Valley Hydro",
+  API: "Api Power", BARUN: "Barun Hydropower", BPCL: "BPCL Hydro Power",
+  CHCL: "Chilime Hydropower", CHL: "Chilime Hydro", DHPL: "Dolakha Hydro",
+  GHL: "Green Hydro Power", GLH: "Green Life Hydro", HDHPC: "Himalayan Hydro",
+  HPPL: "Himalayan Power Partner", HURJA: "HURJA Hydro", JOSHI: "Joshi Hydro",
+  KKHC: "Kalinchowka Hydropower", KPCL: "Kurichhu Power", LEC: "Lower Solu Hydro",
+  MEN: "Marsyangdi Hydro", MHNL: "Mahalaxmi Hydro", MKJC: "MKJC Hydro",
+  NGPL: "Ngadi Group Power", NHDL: "NHDL Hydro", NHPC: "Nepal Hydro Power",
+  NYADI: "Nyadi Hydro", PMHPL: "PMHP Hydro", PPCL: "PPCL Hydro",
+  RADHI: "Radhi Hydro", RHPC: "Rasunagadha Hydro", RHPL: "Ratuwa Hydro",
+  RRHP: "RRHP Hydro", RURU: "Ruru Hydro", SAHAS: "Sahas Power",
+  SHEL: "Shel Hydro", SHPC: "Singati Hydro", SJCL: "SJVNL Jalpa",
+  SPC: "Shree Power", SPDL: "SPDL Hydro", SSHL: "SSHL Hydro",
+  TPC: "Terai Power", UMHL: "United Modi Hydro", UMRH: "Umarai Hydro",
+  UNHPL: "Unat Hydro", UPCL: "Upper Pastchim Hydro", UPPER: "Upper Tamakoshi",
+  CHDC: "Chandragiri Hills", CIT: "Citizen Investment", HIDCL: "Hydro Electricity",
+  NIFRA: "Nepal Infrastructure Bank", NRN: "NRN Hydro",
+  ALICL: "Asian Life Insurance", GLICL: "Guardian Life Insurance", JLI: "Jalpa Life Insurance",
+  LICN: "Life Insurance Corp Nepal", NLIC: "Neco Insurance", NLICL: "NLG Insurance",
+  PLI: "Prabhu Insurance", PLIC: "Prudential Insurance", RLI: "Rastriya Beema Sansthan",
+  SLI: "Surya Life Insurance", SLICL: "Sanima Life Insurance", ULI: "United Life Insurance",
+};
+
+const GROUP_MAP = {
+  ADBL: "A", NMB: "A", SBL: "A", NCCB: "A", KBL: "A", LBL: "A", MBL: "A", EBL: "A", NBB: "A",
+  SBI: "A", HBL: "A", SCB: "A", NIB: "A", NABIL: "A", CZBIL: "A", PCBL: "A", SRBL: "A",
+  SANIMA: "A", MEGA: "A", CBL: "A", CCBL: "A", NBL: "A", GBIME: "A", NICA: "A", PRVU: "A", BOKL: "A",
+  CORBL: "B", EDBL: "B", GBBL: "B", GRDBL: "B", JBBL: "B", KRBL: "B", KSBBL: "B",
+  LBBL: "B", MDB: "B", MLBL: "B", MNBBL: "B", NABBC: "B", SADBL: "B", SAPDBL: "B",
+  SHBL: "B", SHINE: "B", SINDU: "B",
+  BFC: "F", CFCL: "F", GFCL: "F", GMFIL: "F", GUFL: "F", ICFC: "F", JFL: "F", MFIL: "F",
+  MPFL: "F", NFS: "F", PFL: "F", PROFL: "F", RLFL: "F", SFCL: "F", SIFC: "F",
+  CGH: "Z", OHL: "Z", SHL: "Z", TRH: "Z",
+  AHPC: "Z", AKJCL: "Z", AKPL: "Z", API: "Z", BARUN: "Z", BPCL: "Z", CHCL: "Z", CHL: "Z",
+  DHPL: "Z", GHL: "Z", GLH: "Z", HDHPC: "Z", HPPL: "Z", HURJA: "Z", JOSHI: "Z",
+  KKHC: "Z", KPCL: "Z", LEC: "Z", MEN: "Z", MHNL: "Z", MKJC: "Z",
+  NGPL: "Z", NHDL: "Z", NHPC: "Z", NYADI: "Z", PMHPL: "Z", PPCL: "Z",
+  RADHI: "Z", RHPC: "Z", RHPL: "Z", RRHP: "Z", RURU: "Z", SAHAS: "Z",
+  SHEL: "Z", SHPC: "Z", SJCL: "Z", SPC: "Z", SPDL: "Z", SSHL: "Z",
+  TPC: "Z", UMHL: "Z", UMRH: "Z", UNHPL: "Z", UPCL: "Z", UPPER: "Z",
+  CHDC: "G", CIT: "G", HIDCL: "G", NIFRA: "G", NRN: "G",
+  ALICL: "A", GLICL: "A", JLI: "A", LICN: "A", NLIC: "A", NLICL: "A",
+  PLI: "A", PLIC: "A", RLI: "A", SLI: "A", SLICL: "A", ULI: "A",
+};
+
+const SHORT_CATEGORY_MAP = {
+  "Commercial Bank": "Com. Banks", "Development Bank": "Dev. Banks", "Finance": "Finance",
+  "Hydropower": "Hydro Power", "Life Insurance": "Life Insu.", "Non Life Insurance": "Non Life Insu.",
+  "Tourism/Hospitality": "Tourism", "Investment": "Investment", "MicroFinance": "MicroFinance", "Other": "Others",
+};
+
 // Supabase data layer - preloaded into memory at startup
 const companyDataCache = new Map();
 let dataLoaded = false;
@@ -1909,6 +1977,9 @@ function calculateFundamentals(symbol) {
   const close = parseFloat(latest.close) || 0;
   const category = CATEGORY_MAP[symbol] || "Other";
   const hash = symbol.split("").reduce((a, c) => a + c.charCodeAt(0), 0);
+  const companyName = NAME_MAP[symbol] || symbol;
+  const group = GROUP_MAP[symbol] || "Z";
+  const shortCategory = SHORT_CATEGORY_MAP[category] || category;
   const sectorMultiples = {
     "Commercial Bank": { pe: [8, 15], pb: [1.0, 2.5], eps: [15, 45], roe: [12, 22], dividendYield: [2, 8] },
     "Development Bank": { pe: [10, 18], pb: [1.2, 3.0], eps: [20, 50], roe: [10, 18], dividendYield: [1, 6] },
@@ -1930,11 +2001,29 @@ function calculateFundamentals(symbol) {
   const marketCap = close * (5000000 + ((hash * 17) % 50000000));
   const fiftyTwoWeekHigh = Math.round(close * (1.1 + ((hash * 19) % 30) / 100) * 100) / 100;
   const fiftyTwoWeekLow = Math.round(close * (0.6 + ((hash * 23) % 30) / 100) * 100) / 100;
+  const units = 5000000 + ((hash * 17) % 50000000);
+  const floatPct = 20 + ((hash * 47) % 60);
+  const floatUnits = Math.round(units * floatPct / 100);
+  const bonusPct = [3, 5, 7, 8, 10, 14, 15][(hash * 19) % 7];
+  const cashPct = [0.26, 0.35, 0.37, 0.42, 0.53, 0.74, 0.75, 8, 12.79][(hash * 23) % 9];
+  const bookCloseDates = ["2026-04-16", "2026-04-08", "2026-02-11", "2026-02-05", "2026-01-05", "2026-01-04", "2026-01-01"];
+  const bookClose = bookCloseDates[(hash * 29) % bookCloseDates.length];
+  const marketCapVal = close * units;
+  const floatCap = close * floatUnits;
   return {
     symbol,
+    companyName,
     category,
-    marketCap,
-    marketCapFormatted: marketCap > 1e9 ? `Rs ${(marketCap / 1e9).toFixed(2)}B` : `Rs ${(marketCap / 1e6).toFixed(2)}M`,
+    shortCategory,
+    group,
+    marketCap: marketCapVal,
+    marketCapFormatted: marketCapVal > 1e9 ? `${(marketCapVal / 1e9).toFixed(2)}Ar` : `${(marketCapVal / 1e7).toFixed(2)}Cr`,
+    units,
+    unitsFormatted: units > 1e7 ? `${(units / 1e7).toFixed(2)}Cr` : `${(units / 1e5).toFixed(2)}L`,
+    float: floatUnits,
+    floatFormatted: floatUnits > 1e7 ? `${(floatUnits / 1e7).toFixed(2)}Cr` : `${(floatUnits / 1e5).toFixed(2)}L`,
+    floatCap,
+    floatCapFormatted: floatCap > 1e9 ? `${(floatCap / 1e9).toFixed(2)}Ar` : `${(floatCap / 1e7).toFixed(2)}Cr`,
     pe,
     pb: Math.round(pb * 100) / 100,
     eps: Math.round(eps * 100) / 100,
@@ -1950,6 +2039,11 @@ function calculateFundamentals(symbol) {
     fiftyTwoWeekLow,
     beta: Math.round((0.6 + ((hash * 43) % 10) / 10) * 100) / 100,
     latestClose: close,
+    change: Math.round(parseFloat(latest.per_change) || ((hash * 3) % 30 - 15) * 0.1) * 100 / 100,
+    changePct: parseFloat(latest.per_change) || Math.round(((hash * 3) % 30 - 15) * 0.1 * 100) / 100,
+    bonusPct,
+    cashDividendPct: cashPct,
+    bookClose,
     latestDate: latest.published_date,
   };
 }
@@ -3863,6 +3957,63 @@ app.get("/api/brokers", async (req, res) => {
   }
 });
 
+// ═══════════════════════════════════════════════════════════
+// BROKER TOP TRADES - Top 5 buys/sells per broker (by turnover & volume)
+// ═══════════════════════════════════════════════════════════
+
+app.get("/api/brokers/top-trades", (req, res) => {
+  const sortBy = req.query.sortBy || "turnover";
+  const floorData = readFloorsheet();
+
+  if (floorData.records && floorData.records.length > 0) {
+    const brokerMap = {};
+    for (const r of floorData.records) {
+      const s = r.symbol;
+      if (!s) continue;
+
+      if (r.buyerBroker) {
+        const bNo = r.buyerBroker;
+        if (!brokerMap[bNo]) brokerMap[bNo] = { brokerNo: bNo, buyStocks: {}, sellStocks: {} };
+        if (!brokerMap[bNo].buyStocks[s]) brokerMap[bNo].buyStocks[s] = { symbol: s, qty: 0, amt: 0, rate: 0, rateCount: 0 };
+        const st = brokerMap[bNo].buyStocks[s];
+        st.qty += r.quantity;
+        st.amt += r.amount;
+        st.rate += r.rate;
+        st.rateCount++;
+      }
+      if (r.sellerBroker) {
+        const bNo = r.sellerBroker;
+        if (!brokerMap[bNo]) brokerMap[bNo] = { brokerNo: bNo, buyStocks: {}, sellStocks: {} };
+        if (!brokerMap[bNo].sellStocks[s]) brokerMap[bNo].sellStocks[s] = { symbol: s, qty: 0, amt: 0, rate: 0, rateCount: 0 };
+        const st = brokerMap[bNo].sellStocks[s];
+        st.qty += r.quantity;
+        st.amt += r.amount;
+        st.rate += r.rate;
+        st.rateCount++;
+      }
+    }
+
+    const brokers = Object.values(brokerMap).map(b => {
+      const topBuys = Object.values(b.buyStocks).sort((a, b) => b.amt - a.amt).slice(0, 5).map(x => ({
+        symbol: x.symbol, qty: x.qty, amt: x.amt, rate: x.rateCount > 0 ? Math.round(x.rate / x.rateCount) : 0,
+      }));
+      const topSells = Object.values(b.sellStocks).sort((a, b) => b.amt - a.amt).slice(0, 5).map(x => ({
+        symbol: x.symbol, qty: x.qty, amt: x.amt, rate: x.rateCount > 0 ? Math.round(x.rate / x.rateCount) : 0,
+      }));
+      const turnover = topBuys.reduce((s, x) => s + x.amt, 0) + topSells.reduce((s, x) => s + x.amt, 0);
+      const volume = topBuys.reduce((s, x) => s + x.qty, 0) + topSells.reduce((s, x) => s + x.qty, 0);
+      return { brokerNo: b.brokerNo, turnover, volume, topBuys, topSells };
+    });
+
+    brokers.sort((a, b) => sortBy === "volume" ? b.volume - a.volume : b.turnover - a.turnover);
+    res.json({ date: floorData.date, source: "floorsheet", sortBy, brokers });
+  } else {
+    const data = generateBrokerTopTrades();
+    data.brokers.sort((a, b) => sortBy === "volume" ? b.volume - a.volume : b.turnover - a.turnover);
+    res.json({ ...data, source: "generated", sortBy });
+  }
+});
+
 app.get("/api/brokers/:brokerNo", (req, res) => {
   const brokerNo = parseInt(req.params.brokerNo);
   if (brokerNo < 1 || brokerNo > 91) return res.status(400).json({ error: "Broker number must be 1-91" });
@@ -3872,6 +4023,220 @@ app.get("/api/brokers/:brokerNo", (req, res) => {
   const history = generateBrokerHistory(`BRK${brokerNo}`, 30);
   res.json({ broker, history, date: data.date });
 });
+
+// ═══════════════════════════════════════════════════════════
+// BROKER HOLDINGS - Which stocks did each broker trade most
+// ═══════════════════════════════════════════════════════════
+
+const BROKER_STOCKS = [
+  "NABIL","EBL","SBI","NICA","GBIME","HBL","KBL","NMB","SCB","SANIMA",
+  "ADBL","BPCL","CHCL","CBL","MBL","NBL","PCBL","PRVU","SHINE","KSBBL",
+  "NLIC","LICN","CFCL","NIFRA","JFL","OHL","HIDCL","NHPC","UMHL","UPCL",
+  "AKPL","GHL","KKHC","HURJA","GMFIL","PFL","GLICL","SBL","NCCB","CCBL",
+];
+
+function generateBrokerHoldings(brokerNo) {
+  const today = new Date();
+  const nepalTime = new Date(today.toLocaleString("en-US", { timeZone: "Asia/Kathmandu" }));
+  const dateStr = nepalTime.toISOString().split("T")[0];
+  const numStocks = 8 + (brokerNo % 7);
+  const stocks = [];
+  for (let i = 0; i < numStocks; i++) {
+    const stockIdx = (brokerNo * 13 + i * 37) % BROKER_STOCKS.length;
+    const symbol = BROKER_STOCKS[stockIdx];
+    const hash = (brokerNo * 7919 + i * 1337) % 10000;
+    const buyQty = 100 + (hash * 31) % 50000;
+    const sellQty = 50 + (hash * 47) % 45000;
+    const avgRate = 500 + (hash % 2000);
+    const buyAmt = buyQty * avgRate;
+    const sellAmt = sellQty * avgRate;
+    const netQty = buyQty - sellQty;
+    const netAmt = buyAmt - sellAmt;
+    stocks.push({
+      symbol,
+      buyQty,
+      sellQty,
+      buyAmt,
+      sellAmt,
+      netQty,
+      netAmt,
+      avgRate,
+      trades: 5 + (hash % 30),
+    });
+  }
+  stocks.sort((a, b) => Math.abs(b.buyAmt + b.sellAmt) - Math.abs(a.buyAmt + a.sellAmt));
+  return { brokerNo, date: dateStr, holdings: stocks };
+}
+
+function generateTopStocksByBroker() {
+  const today = new Date();
+  const nepalTime = new Date(today.toLocaleString("en-US", { timeZone: "Asia/Kathmandu" }));
+  const dateStr = nepalTime.toISOString().split("T")[0];
+  const stockMap = {};
+
+  for (let brokerNo = 1; brokerNo <= 91; brokerNo++) {
+    const numStocks = 4 + (brokerNo % 5);
+    for (let i = 0; i < numStocks; i++) {
+      const stockIdx = (brokerNo * 13 + i * 37) % BROKER_STOCKS.length;
+      const symbol = BROKER_STOCKS[stockIdx];
+      const hash = (brokerNo * 7919 + i * 1337) % 10000;
+      const buyQty = 100 + (hash * 31) % 50000;
+      const sellQty = 50 + (hash * 47) % 45000;
+      const avgRate = 500 + (hash % 2000);
+      const buyAmt = buyQty * avgRate;
+      const sellAmt = sellQty * avgRate;
+      const netQty = buyQty - sellQty;
+
+      if (!stockMap[symbol]) {
+        stockMap[symbol] = { symbol, totalBuyQty: 0, totalSellQty: 0, totalBuyAmt: 0, totalSellAmt: 0, topBuyer: { brokerNo: 0, amount: 0 }, topSeller: { brokerNo: 0, amount: 0 }, brokerCount: 0 };
+      }
+      const s = stockMap[symbol];
+      s.totalBuyQty += buyQty;
+      s.totalSellQty += sellQty;
+      s.totalBuyAmt += buyAmt;
+      s.totalSellAmt += sellAmt;
+      s.brokerCount++;
+      if (buyAmt > s.topBuyer.amount) s.topBuyer = { brokerNo, amount: buyAmt };
+      if (sellAmt > s.topSeller.amount) s.topSeller = { brokerNo, amount: sellAmt };
+    }
+  }
+
+  const stocks = Object.values(stockMap);
+  stocks.sort((a, b) => (b.totalBuyAmt + b.totalSellAmt) - (a.totalBuyAmt + a.totalSellAmt));
+  return { date: dateStr, stocks: stocks.slice(0, 30) };
+}
+
+app.get("/api/brokers/:brokerNo/holdings", (req, res) => {
+  const brokerNo = parseInt(req.params.brokerNo);
+  if (brokerNo < 1 || brokerNo > 91) return res.status(400).json({ error: "Broker number must be 1-91" });
+
+  const floorData = readFloorsheet();
+  let holdings = [];
+
+  if (floorData.records && floorData.records.length > 0) {
+    const stockMap = {};
+    for (const r of floorData.records) {
+      const s = r.symbol;
+      if (!s) continue;
+
+      if (r.buyerBroker === brokerNo) {
+        if (!stockMap[s]) stockMap[s] = { symbol: s, buyQty: 0, sellQty: 0, buyAmt: 0, sellAmt: 0, avgRate: 0, rateSum: 0, rateCount: 0, trades: 0 };
+        stockMap[s].buyQty += r.quantity;
+        stockMap[s].buyAmt += r.amount;
+        stockMap[s].rateSum += r.rate;
+        stockMap[s].rateCount++;
+        stockMap[s].trades++;
+      }
+      if (r.sellerBroker === brokerNo) {
+        if (!stockMap[s]) stockMap[s] = { symbol: s, buyQty: 0, sellQty: 0, buyAmt: 0, sellAmt: 0, avgRate: 0, rateSum: 0, rateCount: 0, trades: 0 };
+        stockMap[s].sellQty += r.quantity;
+        stockMap[s].sellAmt += r.amount;
+        stockMap[s].rateSum += r.rate;
+        stockMap[s].rateCount++;
+        stockMap[s].trades++;
+      }
+    }
+    holdings = Object.values(stockMap).map(h => ({
+      symbol: h.symbol,
+      buyQty: h.buyQty,
+      sellQty: h.sellQty,
+      buyAmt: h.buyAmt,
+      sellAmt: h.sellAmt,
+      netQty: h.buyQty - h.sellQty,
+      netAmt: h.buyAmt - h.sellAmt,
+      avgRate: h.rateCount > 0 ? Math.round(h.rateSum / h.rateCount) : 0,
+      trades: h.trades,
+    }));
+    holdings.sort((a, b) => Math.abs(b.buyAmt + b.sellAmt) - Math.abs(a.buyAmt + a.sellAmt));
+    res.json({ brokerNo, date: floorData.date, source: "floorsheet", holdings });
+  } else {
+    const data = generateBrokerHoldings(brokerNo);
+    res.json({ ...data, source: "generated" });
+  }
+});
+
+app.get("/api/brokers/holdings/top-stocks", (req, res) => {
+  const floorData = readFloorsheet();
+
+  if (floorData.records && floorData.records.length > 0) {
+    const stockMap = {};
+    for (const r of floorData.records) {
+      const s = r.symbol;
+      if (!s) continue;
+      if (!stockMap[s]) stockMap[s] = { symbol: s, totalBuyQty: 0, totalSellQty: 0, totalBuyAmt: 0, totalSellAmt: 0, topBuyer: { brokerNo: 0, amount: 0 }, topSeller: { brokerNo: 0, amount: 0 }, brokerCount: new Set(), totalTrades: 0 };
+      const st = stockMap[s];
+
+      if (r.buyerBroker) {
+        st.totalBuyQty += r.quantity;
+        st.totalBuyAmt += r.amount;
+        st.brokerCount.add(r.buyerBroker);
+        st.totalTrades++;
+        if (r.amount > st.topBuyer.amount) st.topBuyer = { brokerNo: r.buyerBroker, amount: r.amount };
+      }
+      if (r.sellerBroker) {
+        st.totalSellQty += r.quantity;
+        st.totalSellAmt += r.amount;
+        st.brokerCount.add(r.sellerBroker);
+        st.totalTrades++;
+        if (r.amount > st.topSeller.amount) st.topSeller = { brokerNo: r.sellerBroker, amount: r.amount };
+      }
+    }
+    const stocks = Object.values(stockMap).map(s => ({
+      ...s,
+      brokerCount: s.brokerCount.size,
+      netQty: s.totalBuyQty - s.totalSellQty,
+      netAmt: s.totalBuyAmt - s.totalSellAmt,
+    }));
+    stocks.sort((a, b) => (b.totalBuyAmt + b.totalSellAmt) - (a.totalBuyAmt + a.totalSellAmt));
+    res.json({ date: floorData.date, source: "floorsheet", stocks: stocks.slice(0, 30) });
+  } else {
+    const data = generateTopStocksByBroker();
+    res.json({ ...data, source: "generated" });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════
+// BROKER TOP TRADES - Top 5 buys/sells per broker (by turnover & volume)
+// ═══════════════════════════════════════════════════════════
+
+function generateBrokerTopTrades() {
+  const today = new Date();
+  const nepalTime = new Date(today.toLocaleString("en-US", { timeZone: "Asia/Kathmandu" }));
+  const dateStr = nepalTime.toISOString().split("T")[0];
+  const brokerCount = 91;
+  const brokers = [];
+
+  for (let i = 1; i <= brokerCount; i++) {
+    const numStocks = 10 + (i % 8);
+    const buyStocks = [];
+    const sellStocks = [];
+    for (let j = 0; j < numStocks; j++) {
+      const stockIdx = (i * 13 + j * 37) % BROKER_STOCKS.length;
+      const symbol = BROKER_STOCKS[stockIdx];
+      const hash = (i * 7919 + j * 1337) % 10000;
+      const buyQty = 100 + (hash * 31) % 50000;
+      const sellQty = 50 + (hash * 47) % 45000;
+      const avgRate = 500 + (hash % 2000);
+      const buyAmt = buyQty * avgRate;
+      const sellAmt = sellQty * avgRate;
+      buyStocks.push({ symbol, qty: buyQty, amt: buyAmt, rate: avgRate });
+      sellStocks.push({ symbol, qty: sellQty, amt: sellAmt, rate: avgRate });
+    }
+    buyStocks.sort((a, b) => b.amt - a.amt);
+    sellStocks.sort((a, b) => b.amt - a.amt);
+    const turnover = buyStocks.slice(0, 5).reduce((s, x) => s + x.amt, 0) + sellStocks.slice(0, 5).reduce((s, x) => s + x.amt, 0);
+    const volume = buyStocks.slice(0, 5).reduce((s, x) => s + x.qty, 0) + sellStocks.slice(0, 5).reduce((s, x) => s + x.qty, 0);
+    brokers.push({
+      brokerNo: i,
+      turnover,
+      volume,
+      topBuys: buyStocks.slice(0, 5),
+      topSells: sellStocks.slice(0, 5),
+    });
+  }
+
+  return { date: dateStr, brokers };
+}
 
 app.get("/api/brokers/history/overview", (req, res) => {
   const days = parseInt(req.query.days) || 30;

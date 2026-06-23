@@ -17,6 +17,7 @@ import {
   Activity,
   ArrowRightLeft,
   Users,
+  AlertTriangle,
 } from "lucide-react";
 import {
   BarChart,
@@ -57,17 +58,21 @@ export default function Home() {
   const [marketSummary, setMarketSummary] = useState<MarketSummary | null>(null);
   const [heatmap, setHeatmap] = useState<HeatmapData[]>([]);
   const [marketStatus, setMarketStatus] = useState<MarketStatus | null>(null);
+  const [connectionError, setConnectionError] = useState(false);
 
   const { toggle, isWatched } = useWatchlist();
   const { widgets, enabled: enabledWidgets, toggleWidget, moveWidget } = useDashboardWidgets();
 
   useEffect(() => {
+    const safeFetch = (url: string, fallback: any = null) =>
+      fetch(url).then((r) => r.json()).catch(() => fallback);
+
     Promise.all([
-      fetch(`${API_BASE}/api/companies`).then((r) => r.json()),
-      fetch(`${API_BASE}/api/top-movers`).then((r) => r.json()),
-      fetch(`${API_BASE}/api/market-summary`).then((r) => r.json()),
-      fetch(`${API_BASE}/api/sectors/heatmap`).then((r) => r.json()),
-      fetch(`${API_BASE}/api/market-status`).then((r) => r.json()),
+      safeFetch(`${API_BASE}/api/companies`, []),
+      safeFetch(`${API_BASE}/api/top-movers`, []),
+      safeFetch(`${API_BASE}/api/market-summary`, {}),
+      safeFetch(`${API_BASE}/api/sectors/heatmap`, []),
+      safeFetch(`${API_BASE}/api/market-status`, {}),
     ])
       .then(([companiesData, movers, summary, heat, status]) => {
         setCompanies(companiesData);
@@ -75,9 +80,10 @@ export default function Home() {
         setMarketSummary(summary);
         setHeatmap(heat);
         setMarketStatus(status);
-        setLoading(false);
+        if (companiesData.length === 0) setConnectionError(true);
       })
-      .catch(() => setLoading(false));
+      .catch(() => setConnectionError(true))
+      .finally(() => setLoading(false));
   }, []);
 
   const filtered = companies.filter((c) =>
@@ -99,6 +105,21 @@ export default function Home() {
   return (
     <ErrorBoundary>
       <div className="space-y-6 max-w-7xl mx-auto">
+        {/* Connection Error Banner */}
+        {connectionError && (
+          <div className="rounded-xl border border-[var(--amber-border)] bg-[var(--amber-bg)] px-5 py-4">
+            <div className="flex items-center gap-3">
+              <AlertTriangle className="h-5 w-5 text-[var(--amber)]" />
+              <div>
+                <p className="text-sm font-bold text-[var(--text-primary)]">Backend not connected</p>
+                <p className="text-xs text-[var(--text-muted)]">
+                  Make sure the backend is running on {API_BASE}. Run: <code className="rounded bg-[var(--bg-input)] px-1.5 py-0.5 text-[var(--accent)]">cd backend && node server.js</code>
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>

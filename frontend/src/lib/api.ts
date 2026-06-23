@@ -906,6 +906,85 @@ export async function fetchFloorSheet(params?: {
   return res.json();
 }
 
+// --- Broker Holdings ---
+export interface BrokerHoldingStock {
+  symbol: string;
+  buyQty: number;
+  sellQty: number;
+  buyAmt: number;
+  sellAmt: number;
+  netQty: number;
+  netAmt: number;
+  avgRate: number;
+  trades: number;
+}
+
+export interface BrokerHoldingsResponse {
+  brokerNo: number;
+  date: string;
+  source: "floorsheet" | "generated";
+  holdings: BrokerHoldingStock[];
+}
+
+export interface TopStockByBroker {
+  symbol: string;
+  totalBuyQty: number;
+  totalSellQty: number;
+  totalBuyAmt: number;
+  totalSellAmt: number;
+  topBuyer: { brokerNo: number; amount: number };
+  topSeller: { brokerNo: number; amount: number };
+  brokerCount: number;
+  netQty: number;
+  netAmt: number;
+  totalTrades: number;
+}
+
+export interface TopStocksByBrokerResponse {
+  date: string;
+  source: "floorsheet" | "generated";
+  stocks: TopStockByBroker[];
+}
+
+export async function fetchBrokerHoldings(brokerNo: number): Promise<BrokerHoldingsResponse> {
+  const res = await fetch(`${API_BASE}/api/brokers/${brokerNo}/holdings`);
+  return res.json();
+}
+
+export async function fetchTopStocksByBroker(): Promise<TopStocksByBrokerResponse> {
+  const res = await fetch(`${API_BASE}/api/brokers/holdings/top-stocks`);
+  return res.json();
+}
+
+// --- Broker Top Trades (By Turnover / By Volume) ---
+export interface BrokerTopTradeStock {
+  symbol: string;
+  qty: number;
+  amt: number;
+  rate: number;
+}
+
+export interface BrokerTopTradeBroker {
+  brokerNo: number;
+  turnover: number;
+  volume: number;
+  topBuys: BrokerTopTradeStock[];
+  topSells: BrokerTopTradeStock[];
+}
+
+export interface BrokerTopTradesResponse {
+  date: string;
+  source: "floorsheet" | "generated";
+  sortBy: string;
+  brokers: BrokerTopTradeBroker[];
+}
+
+export async function fetchBrokerTopTrades(sortBy?: string): Promise<BrokerTopTradesResponse> {
+  const params = sortBy ? `?sortBy=${sortBy}` : "";
+  const res = await fetch(`${API_BASE}/api/brokers/top-trades${params}`);
+  return res.json();
+}
+
 export async function scrapeFloorSheet(): Promise<{ message: string; timestamp: string; result: unknown }> {
   const res = await fetch(`${API_BASE}/api/floorsheet/scrape`);
   return res.json();

@@ -42,6 +42,7 @@ import {
   Bell,
 } from "lucide-react";
 import { I18nProvider, useI18n } from "@/lib/i18n";
+import { safeFetch } from "@/lib/api";
 import { LanguageSwitcher } from "@/components/language-switcher";
 import { ToastProvider } from "@/components/toast";
 import { ConfirmProvider } from "@/components/confirm-dialog";
@@ -52,8 +53,7 @@ import PriceTicker from "@/components/price-ticker";
 import Breadcrumbs from "@/components/breadcrumbs";
 import KeyboardShortcutsProvider from "@/components/keyboard-shortcuts";
 import MobileNav from "@/components/mobile-nav";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+import { API_BASE } from "@/lib/api";
 
 interface MarketStatus {
   status: string;
@@ -232,10 +232,7 @@ function InnerLayout({ children }: { children: React.ReactNode }) {
   }, [collapsed]);
 
   useEffect(() => {
-    fetch(`${API_BASE}/api/market-status`).then(r => {
-      if (!r.ok) return null;
-      return r.text().then(t => t ? JSON.parse(t) : null);
-    }).then(setMarketStatus).catch(() => {});
+    safeFetch<MarketStatus | null>(`${API_BASE}/api/market-status`, null).then(setMarketStatus);
   }, []);
 
   useEffect(() => { setSidebarOpen(false); }, [pathname]);

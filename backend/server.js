@@ -7,12 +7,28 @@ const http = require("http");
 const { WebSocketServer } = require("ws");
 const { parse } = require("csv-parse/sync");
 const { createClient } = require("@supabase/supabase-js");
-const dataProvider = require("./data-provider");
+let dataProvider;
+try {
+  dataProvider = require("./data-provider");
+} catch (e) {
+  console.error("data-provider load failed:", e.message);
+  dataProvider = {
+    getMutualFunds: async () => [],
+    getDebentures: async () => [],
+    getInsiderTrading: async () => [],
+    getEarningsCalendar: async () => [],
+    getHoldings: async () => [],
+    getAnnouncements: async () => [],
+    getBrokers: async () => [],
+    scraperStatus: {},
+    companies: () => [],
+  };
+}
 
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
+const supabase = process.env.SUPABASE_URL
+  ? createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
+  : null;
+if (!supabase) console.warn("SUPABASE_URL not set — running without database");
 
 const app = express();
 app.use(cors({
@@ -388,6 +404,7 @@ const companyDataCache = new Map();
 let dataLoaded = false;
 
 async function preloadAllCompanyData() {
+  if (!supabase) { console.log("No Supabase connection — skipping preload"); return; }
   console.log("Loading all company data from Supabase...");
   const { data: companies, error } = await supabase.from("companies").select("symbol");
   if (error) { console.error("Failed to load companies:", error.message); return; }

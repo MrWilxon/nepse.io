@@ -117,6 +117,7 @@ function getNavCategories(t: (key: string) => string): NavCategory[] {
         { href: "/brokers/analysis", label: "Broker Analysis", icon: Activity },
         { href: "/floorsheet", label: "Floor Sheet", icon: FileText },
         { href: "/ipo", label: t("nav.ipo"), icon: FileText },
+        { href: "/bulk-ipo", label: "Bulk IPO", icon: Layers },
         { href: "/dividend-calendar", label: t("nav.dividendCalendar"), icon: Calendar },
         { href: "/announcements", label: t("nav.announcements"), icon: Bell },
       ],

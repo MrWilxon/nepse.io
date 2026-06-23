@@ -1,0 +1,1054 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bulk IPO Manager</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<style>
+:root {
+    --bg-color: #000000;
+    --card-bg: #0c0c0c;
+    --card-border: #222222;
+    --gold: #ffd700;
+    --gold-dim: #d4af37;
+    --gold-glow: rgba(255, 215, 0, 0.25);
+    --text-white: #ffffff;
+    --text-gray: #a0a0a0;
+    --danger: #ff3366;
+    --success: #00ffd5;
+    --warning: #fee440;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+    font-family: 'Outfit', sans-serif;
+    background: var(--bg-color);
+    color: var(--text-white);
+    min-height: 100vh;
+}
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: #111; }
+::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+
+/* Header */
+.header {
+    background: linear-gradient(180deg, #0c0c0c 0%, #000 100%);
+    border-bottom: 1px solid var(--card-border);
+    padding: 20px 32px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+.header h1 {
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--gold);
+}
+.header i { font-size: 28px; color: var(--gold); }
+
+/* Tabs */
+.tabs {
+    display: flex;
+    gap: 0;
+    padding: 0 32px;
+    background: var(--card-bg);
+    border-bottom: 1px solid var(--card-border);
+}
+.tab-btn {
+    padding: 14px 28px;
+    border: none;
+    background: transparent;
+    color: var(--text-gray);
+    font-family: 'Outfit', sans-serif;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s;
+}
+.tab-btn:hover { color: var(--text-white); }
+.tab-btn.active {
+    color: var(--gold);
+    border-bottom-color: var(--gold);
+}
+
+/* Container */
+.container { padding: 24px 32px; max-width: 1400px; margin: 0 auto; }
+.section { display: none; }
+.section.active { display: block; }
+
+/* Cards */
+.card {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 16px;
+    transition: border-color 0.3s, box-shadow 0.3s;
+}
+.card:hover {
+    border-color: var(--gold-dim);
+    box-shadow: 0 0 20px var(--gold-glow);
+}
+.card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+.card-title { font-size: 16px; font-weight: 600; color: var(--text-white); }
+.card-subtitle { font-size: 12px; color: var(--text-gray); margin-top: 2px; }
+
+/* Buttons */
+.btn {
+    padding: 8px 18px;
+    border: none;
+    border-radius: 8px;
+    font-family: 'Outfit', sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+.btn-gold {
+    background: linear-gradient(135deg, var(--gold), var(--gold-dim));
+    color: #000;
+}
+.btn-gold:hover { box-shadow: 0 0 16px var(--gold-glow); transform: translateY(-1px); }
+.btn-outline {
+    background: transparent;
+    border: 1px solid var(--card-border);
+    color: var(--text-gray);
+}
+.btn-outline:hover { border-color: var(--gold-dim); color: var(--gold); }
+.btn-danger { background: var(--danger); color: #fff; }
+.btn-danger:hover { opacity: 0.85; }
+.btn-success { background: var(--success); color: #000; }
+.btn-sm { padding: 5px 12px; font-size: 12px; }
+
+/* Form inputs */
+input, select {
+    width: 100%;
+    padding: 10px 14px;
+    background: #111;
+    border: 1px solid var(--card-border);
+    border-radius: 8px;
+    color: var(--text-white);
+    font-family: 'Outfit', sans-serif;
+    font-size: 13px;
+    outline: none;
+    transition: border-color 0.2s;
+}
+input:focus, select:focus { border-color: var(--gold-dim); }
+label {
+    display: block;
+    font-size: 12px;
+    color: var(--text-gray);
+    margin-bottom: 6px;
+    font-weight: 500;
+}
+.form-group { margin-bottom: 16px; }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+
+/* Autocomplete */
+.autocomplete-wrap { position: relative; }
+.autocomplete-list {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    max-height: 240px;
+    overflow-y: auto;
+    background: #1a1a1a;
+    border: 1px solid var(--card-border);
+    border-radius: 0 0 8px 8px;
+    z-index: 100;
+    display: none;
+}
+.autocomplete-list.show { display: block; }
+.autocomplete-item {
+    padding: 10px 14px;
+    cursor: pointer;
+    font-size: 13px;
+    border-bottom: 1px solid #222;
+    transition: background 0.15s;
+}
+.autocomplete-item:hover, .autocomplete-item.selected {
+    background: #222;
+    color: var(--gold);
+}
+.autocomplete-item .dp-code { color: var(--gold-dim); font-size: 11px; margin-left: 8px; }
+
+/* Badges */
+.badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+}
+.badge-success { background: rgba(0,255,213,0.15); color: var(--success); }
+.badge-danger { background: rgba(255,51,102,0.15); color: var(--danger); }
+.badge-warning { background: rgba(254,228,64,0.15); color: var(--warning); }
+.badge-gray { background: rgba(160,160,160,0.15); color: var(--text-gray); }
+.badge-gold { background: rgba(255,215,0,0.15); color: var(--gold); }
+
+/* Account card */
+.account-card {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 16px;
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 12px;
+    margin-bottom: 10px;
+    transition: all 0.2s;
+}
+.account-card:hover { border-color: var(--gold-dim); }
+.account-card input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--gold);
+    cursor: pointer;
+}
+.account-avatar {
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--gold), var(--gold-dim));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #000;
+    font-weight: 700;
+    font-size: 16px;
+    flex-shrink: 0;
+}
+.account-info { flex: 1; }
+.account-name { font-weight: 600; font-size: 14px; }
+.account-dp { font-size: 12px; color: var(--text-gray); }
+.account-boid { font-size: 11px; color: var(--gold-dim); font-family: monospace; }
+.account-actions { display: flex; gap: 6px; }
+
+/* Password field */
+.pw-field {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+.pw-field input { padding-right: 40px; }
+.pw-toggle {
+    position: absolute;
+    right: 10px;
+    background: none;
+    border: none;
+    color: var(--text-gray);
+    cursor: pointer;
+    font-size: 14px;
+}
+
+/* Issue card */
+.issue-card {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 16px;
+    transition: all 0.3s;
+}
+.issue-card:hover { border-color: var(--gold-dim); box-shadow: 0 0 20px var(--gold-glow); }
+.issue-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
+.issue-name { font-size: 16px; font-weight: 600; }
+.issue-meta { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+.issue-meta-item { font-size: 12px; color: var(--text-gray); }
+.issue-meta-item i { color: var(--gold-dim); margin-right: 4px; }
+.issue-dates { display: flex; gap: 20px; margin-bottom: 14px; }
+.issue-date { font-size: 12px; color: var(--text-gray); }
+.issue-date strong { color: var(--text-white); }
+
+/* Account status matrix */
+.status-matrix {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 8px;
+    margin: 12px 0;
+}
+.status-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: #111;
+    border-radius: 8px;
+    font-size: 12px;
+}
+.status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+.status-dot.green { background: var(--success); }
+.status-dot.red { background: var(--danger); }
+.status-dot.yellow { background: var(--warning); }
+.status-dot.gray { background: var(--text-gray); }
+
+/* Apply controls */
+.apply-controls {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid var(--card-border);
+}
+.kitta-input {
+    width: 80px;
+    text-align: center;
+}
+
+/* Table */
+.table-wrap {
+    overflow-x: auto;
+    margin-top: 16px;
+}
+table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+th {
+    text-align: left;
+    padding: 10px 14px;
+    background: #111;
+    color: var(--text-gray);
+    font-weight: 500;
+    font-size: 12px;
+    border-bottom: 1px solid var(--card-border);
+}
+td {
+    padding: 10px 14px;
+    border-bottom: 1px solid #1a1a1a;
+}
+tr:hover td { background: #111; }
+
+/* Modal */
+.modal-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.85);
+    backdrop-filter: blur(8px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s;
+}
+.modal-overlay.show { opacity: 1; pointer-events: auto; }
+.modal {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 16px;
+    padding: 28px;
+    width: 90%;
+    max-width: 600px;
+    max-height: 85vh;
+    overflow-y: auto;
+    transform: translateY(20px);
+    transition: transform 0.25s;
+}
+.modal-overlay.show .modal { transform: translateY(0); }
+.modal-title {
+    font-size: 18px;
+    font-weight: 600;
+    margin-bottom: 20px;
+    color: var(--gold);
+}
+
+/* Progress modal */
+.progress-bar {
+    height: 6px;
+    background: #222;
+    border-radius: 3px;
+    overflow: hidden;
+    margin: 16px 0;
+}
+.progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--gold), var(--success));
+    border-radius: 3px;
+    transition: width 0.3s;
+}
+.log-container {
+    max-height: 300px;
+    overflow-y: auto;
+    background: #111;
+    border-radius: 8px;
+    padding: 12px;
+    margin-top: 12px;
+    font-family: monospace;
+    font-size: 12px;
+}
+.log-entry { padding: 4px 0; display: flex; align-items: center; gap: 8px; }
+.log-entry i.success { color: var(--success); }
+.log-entry i.fail { color: var(--danger); }
+
+/* Toast */
+.toast-container {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 2000;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.toast {
+    padding: 12px 20px;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 500;
+    animation: slideIn 0.3s, fadeOut 0.3s 3.7s;
+    max-width: 380px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.toast-success { background: rgba(0,255,213,0.15); border: 1px solid var(--success); color: var(--success); }
+.toast-danger { background: rgba(255,51,102,0.15); border: 1px solid var(--danger); color: var(--danger); }
+.toast-warning { background: rgba(254,228,64,0.15); border: 1px solid var(--warning); color: var(--warning); }
+.toast-info { background: rgba(255,215,0,0.15); border: 1px solid var(--gold); color: var(--gold); }
+@keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+@keyframes fadeOut { from { opacity: 1; } to { opacity: 0; } }
+
+/* Toolbar */
+.toolbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+}
+.toolbar-title { font-size: 14px; color: var(--text-gray); margin-right: auto; }
+
+/* Empty state */
+.empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--text-gray);
+}
+.empty-state i { font-size: 48px; color: var(--gold-dim); margin-bottom: 16px; }
+.empty-state p { font-size: 14px; }
+
+/* Loading spinner */
+.spinner {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border: 2px solid var(--card-border);
+    border-top-color: var(--gold);
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Responsive */
+@media (max-width: 768px) {
+    .container { padding: 16px; }
+    .header { padding: 16px; }
+    .tabs { padding: 0 16px; overflow-x: auto; }
+    .form-row { grid-template-columns: 1fr; }
+    .status-matrix { grid-template-columns: 1fr; }
+    .issue-dates { flex-direction: column; gap: 6px; }
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+    <i class="fas fa-layer-group"></i>
+    <h1>Bulk IPO Manager</h1>
+</div>
+
+<div class="tabs">
+    <button class="tab-btn active" data-tab="accounts"><i class="fas fa-users"></i> Accounts</button>
+    <button class="tab-btn" data-tab="issues"><i class="fas fa-chart-line"></i> Open Issues</button>
+    <button class="tab-btn" data-tab="reports"><i class="fas fa-file-alt"></i> Allotment Reports</button>
+</div>
+
+<div class="container">
+    <!-- Accounts Section -->
+    <div id="section-accounts" class="section active">
+        <div class="toolbar">
+            <span class="toolbar-title" id="account-count">0 accounts</span>
+            <button class="btn btn-outline btn-sm" id="select-all-btn"><i class="fas fa-check-double"></i> Select All</button>
+            <button class="btn btn-outline btn-sm" id="clear-all-btn"><i class="fas fa-times"></i> Clear</button>
+            <button class="btn btn-gold" id="add-account-btn"><i class="fas fa-plus"></i> Add Account</button>
+        </div>
+        <div id="accounts-list"></div>
+    </div>
+
+    <!-- Open Issues Section -->
+    <div id="section-issues" class="section">
+        <div class="toolbar">
+            <span class="toolbar-title">Fetched from CDSC MeroShare API</span>
+            <button class="btn btn-gold" id="refresh-issues-btn"><i class="fas fa-sync-alt"></i> Refresh Issues</button>
+        </div>
+        <div id="issues-list"></div>
+    </div>
+
+    <!-- Reports Section -->
+    <div id="section-reports" class="section">
+        <div class="toolbar">
+            <span class="toolbar-title">Allotment reports for selected accounts</span>
+            <button class="btn btn-gold" id="generate-reports-btn"><i class="fas fa-file-alt"></i> Generate Bulk Report</button>
+        </div>
+        <div id="reports-list"></div>
+    </div>
+</div>
+
+<!-- Account Modal -->
+<div class="modal-overlay" id="account-modal">
+    <div class="modal">
+        <div class="modal-title"><i class="fas fa-user-plus"></i> <span id="modal-title-text">Add Account</span></div>
+        <form id="account-form">
+            <input type="hidden" id="edit-username" value="">
+            <div class="form-group">
+                <label>Display Name</label>
+                <input type="text" id="acc-user" placeholder="e.g. John Doe" required>
+            </div>
+            <div class="form-group">
+                <label>DP (Depository Participant)</label>
+                <div class="autocomplete-wrap">
+                    <input type="text" id="acc-dp" placeholder="Search DP code or name..." autocomplete="off" required>
+                    <div class="autocomplete-list" id="dp-autocomplete"></div>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>MeroShare Username</label>
+                    <input type="text" id="acc-username" placeholder="e.g. 00452178" required>
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <div class="pw-field">
+                        <input type="password" id="acc-password" placeholder="MeroShare password" required>
+                        <button type="button" class="pw-toggle" data-target="acc-password"><i class="fas fa-eye"></i></button>
+                    </div>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>CRN Number</label>
+                    <input type="text" id="acc-crn" placeholder="CRN" required>
+                </div>
+                <div class="form-group">
+                    <label>Transaction PIN (4-digit)</label>
+                    <div class="pw-field">
+                        <input type="password" id="acc-pin" placeholder="PIN" maxlength="4" required>
+                        <button type="button" class="pw-toggle" data-target="acc-pin"><i class="fas fa-eye"></i></button>
+                    </div>
+                </div>
+            </div>
+            <div style="display:flex;gap:10px;margin-top:8px;">
+                <button type="button" class="btn btn-outline" id="verify-btn"><i class="fas fa-plug"></i> Test Connection</button>
+                <span style="flex:1"></span>
+                <button type="button" class="btn btn-outline" id="cancel-modal-btn">Cancel</button>
+                <button type="submit" class="btn btn-gold"><i class="fas fa-save"></i> Save</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Progress Modal -->
+<div class="modal-overlay" id="progress-modal">
+    <div class="modal">
+        <div class="modal-title"><i class="fas fa-bolt"></i> Bulk Apply Progress</div>
+        <div id="progress-info" style="font-size:13px;color:var(--text-gray);"></div>
+        <div class="progress-bar"><div class="progress-fill" id="progress-fill" style="width:0%"></div></div>
+        <div id="progress-counter" style="font-size:13px;text-align:center;color:var(--gold);">0 / 0</div>
+        <div class="log-container" id="progress-log"></div>
+        <div style="margin-top:16px;text-align:right;">
+            <button class="btn btn-outline" id="close-progress-btn" disabled>Close</button>
+        </div>
+    </div>
+</div>
+
+<!-- Confirm Modal -->
+<div class="modal-overlay" id="confirm-modal">
+    <div class="modal" style="max-width:400px;">
+        <div class="modal-title"><i class="fas fa-exclamation-triangle" style="color:var(--danger)"></i> Confirm Delete</div>
+        <p style="font-size:14px;color:var(--text-gray);margin-bottom:20px;" id="confirm-message">Are you sure?</p>
+        <div style="display:flex;gap:10px;justify-content:flex-end;">
+            <button class="btn btn-outline" id="confirm-cancel">Cancel</button>
+            <button class="btn btn-danger" id="confirm-ok">Delete</button>
+        </div>
+    </div>
+</div>
+
+<!-- Toast Container -->
+<div class="toast-container" id="toast-container"></div>
+
+<script>
+(function() {
+    const API = window.location.origin + '/api';
+    let capitals = [];
+    let accounts = [];
+    let selectedAccounts = new Set();
+    let issues = [];
+    let pollInterval = null;
+    let confirmCallback = null;
+    let dpSelectedIndex = -1;
+    let dpFiltered = [];
+
+    // --- Init ---
+    document.addEventListener('DOMContentLoaded', async () => {
+        await loadCapitals();
+        await loadAccounts();
+        setupTabs();
+        setupModals();
+        setupAutocomplete();
+        setupPasswordToggles();
+    });
+
+    // --- Toast ---
+    function showToast(msg, type='info') {
+        const container = document.getElementById('toast-container');
+        const icons = { success: 'fa-check-circle', danger: 'fa-times-circle', warning: 'fa-exclamation-circle', info: 'fa-info-circle' };
+        const toast = document.createElement('div');
+        toast.className = `toast toast-${type}`;
+        toast.innerHTML = `<i class="fas ${icons[type] || icons.info}"></i> ${msg}`;
+        container.appendChild(toast);
+        setTimeout(() => toast.remove(), 4000);
+    }
+
+    // --- Tabs ---
+    function setupTabs() {
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+                btn.classList.add('active');
+                document.getElementById('section-' + btn.dataset.tab).classList.add('active');
+                if (btn.dataset.tab === 'issues') loadIssues();
+            });
+        });
+    }
+
+    // --- Capitals ---
+    async function loadCapitals() {
+        try {
+            const resp = await fetch(API + '/capitals');
+            capitals = await resp.json();
+        } catch(e) { showToast('Failed to load DP list', 'danger'); }
+    }
+
+    // --- Accounts ---
+    async function loadAccounts() {
+        try {
+            const resp = await fetch(API + '/accounts');
+            accounts = await resp.json();
+            renderAccounts();
+        } catch(e) { showToast('Failed to load accounts', 'danger'); }
+    }
+
+    function renderAccounts() {
+        const list = document.getElementById('accounts-list');
+        document.getElementById('account-count').textContent = accounts.length + ' account' + (accounts.length !== 1 ? 's' : '');
+        if (!accounts.length) {
+            list.innerHTML = '<div class="empty-state"><i class="fas fa-users"></i><p>No accounts yet. Add one to get started.</p></div>';
+            return;
+        }
+        list.innerHTML = accounts.map(a => {
+            const cap = capitals.find(c => c.code === a.dp);
+            const dpName = cap ? cap.name : 'Unknown';
+            const initial = a.user.charAt(0).toUpperCase();
+            const checked = selectedAccounts.has(a.username) ? 'checked' : '';
+            return `
+            <div class="account-card" data-username="${a.username}">
+                <input type="checkbox" ${checked} class="account-select" data-username="${a.username}">
+                <div class="account-avatar">${initial}</div>
+                <div class="account-info">
+                    <div class="account-name">${a.user}</div>
+                    <div class="account-dp">${dpName}</div>
+                    <div class="account-boid">130${a.dp}${a.username}</div>
+                </div>
+                <div class="account-actions">
+                    <button class="btn btn-outline btn-sm edit-btn" data-username="${a.username}"><i class="fas fa-edit"></i></button>
+                    <button class="btn btn-outline btn-sm delete-btn" data-username="${a.username}"><i class="fas fa-trash"></i></button>
+                </div>
+            </div>`;
+        }).join('');
+
+        list.querySelectorAll('.account-select').forEach(cb => {
+            cb.addEventListener('change', (e) => {
+                if (e.target.checked) selectedAccounts.add(e.target.dataset.username);
+                else selectedAccounts.delete(e.target.dataset.username);
+            });
+        });
+        list.querySelectorAll('.edit-btn').forEach(btn => {
+            btn.addEventListener('click', () => openEditModal(btn.dataset.username));
+        });
+        list.querySelectorAll('.delete-btn').forEach(btn => {
+            btn.addEventListener('click', () => confirmDelete(btn.dataset.username));
+        });
+    }
+
+    document.getElementById('select-all-btn').addEventListener('click', () => {
+        accounts.forEach(a => selectedAccounts.add(a.username));
+        document.querySelectorAll('.account-select').forEach(cb => cb.checked = true);
+    });
+    document.getElementById('clear-all-btn').addEventListener('click', () => {
+        selectedAccounts.clear();
+        document.querySelectorAll('.account-select').forEach(cb => cb.checked = false);
+    });
+
+    // --- Account Modal ---
+    function setupModals() {
+        document.getElementById('add-account-btn').addEventListener('click', () => openAddModal());
+        document.getElementById('cancel-modal-btn').addEventListener('click', closeAccountModal);
+        document.getElementById('account-form').addEventListener('submit', handleAccountSave);
+        document.getElementById('verify-btn').addEventListener('click', handleVerify);
+        document.getElementById('close-progress-btn').addEventListener('click', closeProgressModal);
+        document.getElementById('confirm-cancel').addEventListener('click', closeConfirmModal);
+        document.getElementById('confirm-ok').addEventListener('click', () => { if (confirmCallback) confirmCallback(); closeConfirmModal(); });
+        document.getElementById('account-modal').addEventListener('click', (e) => { if (e.target === e.currentTarget) closeAccountModal(); });
+        document.getElementById('progress-modal').addEventListener('click', (e) => { if (e.target === e.currentTarget) closeProgressModal(); });
+        document.getElementById('confirm-modal').addEventListener('click', (e) => { if (e.target === e.currentTarget) closeConfirmModal(); });
+    }
+
+    function openAddModal() {
+        document.getElementById('modal-title-text').textContent = 'Add Account';
+        document.getElementById('edit-username').value = '';
+        document.getElementById('account-form').reset();
+        document.getElementById('account-modal').classList.add('show');
+    }
+
+    function openEditModal(username) {
+        const acc = accounts.find(a => a.username === username);
+        if (!acc) return;
+        document.getElementById('modal-title-text').textContent = 'Edit Account';
+        document.getElementById('edit-username').value = acc.username;
+        document.getElementById('acc-user').value = acc.user;
+        document.getElementById('acc-dp').value = acc.dp;
+        document.getElementById('acc-username').value = acc.username;
+        document.getElementById('acc-password').value = acc.password;
+        document.getElementById('acc-crn').value = acc.crn;
+        document.getElementById('acc-pin').value = acc.pin;
+        document.getElementById('account-modal').classList.add('show');
+    }
+
+    function closeAccountModal() {
+        document.getElementById('account-modal').classList.remove('show');
+    }
+
+    async function handleAccountSave(e) {
+        e.preventDefault();
+        const data = {
+            user: document.getElementById('acc-user').value.trim(),
+            dp: document.getElementById('acc-dp').value.trim(),
+            username: document.getElementById('acc-username').value.trim(),
+            password: document.getElementById('acc-password').value,
+            crn: document.getElementById('acc-crn').value.trim(),
+            pin: document.getElementById('acc-pin').value,
+        };
+        try {
+            const resp = await fetch(API + '/accounts', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) });
+            const result = await resp.json();
+            if (result.success) {
+                showToast(result.message, 'success');
+                closeAccountModal();
+                await loadAccounts();
+            } else {
+                showToast(result.message || 'Save failed', 'danger');
+            }
+        } catch(e) { showToast('Network error', 'danger'); }
+    }
+
+    async function handleVerify() {
+        const data = {
+            user: document.getElementById('acc-user').value.trim(),
+            dp: document.getElementById('acc-dp').value.trim(),
+            username: document.getElementById('acc-username').value.trim(),
+            password: document.getElementById('acc-password').value,
+            crn: document.getElementById('acc-crn').value.trim(),
+            pin: document.getElementById('acc-pin').value,
+        };
+        const btn = document.getElementById('verify-btn');
+        btn.innerHTML = '<span class="spinner"></span> Testing...';
+        btn.disabled = true;
+        try {
+            const resp = await fetch(API + '/accounts/verify', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) });
+            const result = await resp.json();
+            showToast(result.message, result.success ? 'success' : 'danger');
+        } catch(e) { showToast('Network error', 'danger'); }
+        btn.innerHTML = '<i class="fas fa-plug"></i> Test Connection';
+        btn.disabled = false;
+    }
+
+    function confirmDelete(username) {
+        document.getElementById('confirm-message').textContent = `Delete account "${username}"? This cannot be undone.`;
+        document.getElementById('confirm-modal').classList.add('show');
+        confirmCallback = async () => {
+            try {
+                const resp = await fetch(API + '/accounts/' + encodeURIComponent(username), { method: 'DELETE' });
+                const result = await resp.json();
+                if (result.success) { showToast(result.message, 'success'); await loadAccounts(); }
+                else showToast(result.message, 'danger');
+            } catch(e) { showToast('Network error', 'danger'); }
+        };
+    }
+    function closeConfirmModal() { document.getElementById('confirm-modal').classList.remove('show'); confirmCallback = null; }
+
+    // --- Autocomplete ---
+    function setupAutocomplete() {
+        const input = document.getElementById('acc-dp');
+        const list = document.getElementById('dp-autocomplete');
+
+        input.addEventListener('input', () => {
+            const val = input.value.toLowerCase();
+            dpFiltered = capitals.filter(c => c.code.includes(val) || c.name.toLowerCase().includes(val)).slice(0, 20);
+            dpSelectedIndex = -1;
+            if (!val || !dpFiltered.length) { list.classList.remove('show'); return; }
+            list.innerHTML = dpFiltered.map((c, i) => `<div class="autocomplete-item" data-index="${i}">${c.name}<span class="dp-code">${c.code}</span></div>`).join('');
+            list.classList.add('show');
+            list.querySelectorAll('.autocomplete-item').forEach(item => {
+                item.addEventListener('mousedown', () => selectDP(parseInt(item.dataset.index)));
+            });
+        });
+
+        input.addEventListener('keydown', (e) => {
+            if (!list.classList.contains('show')) return;
+            if (e.key === 'ArrowDown') { e.preventDefault(); dpSelectedIndex = Math.min(dpSelectedIndex + 1, dpFiltered.length - 1); updateDpHighlight(); }
+            else if (e.key === 'ArrowUp') { e.preventDefault(); dpSelectedIndex = Math.max(dpSelectedIndex - 1, 0); updateDpHighlight(); }
+            else if (e.key === 'Enter' && dpSelectedIndex >= 0) { e.preventDefault(); selectDP(dpSelectedIndex); }
+            else if (e.key === 'Escape') { list.classList.remove('show'); }
+        });
+
+        input.addEventListener('blur', () => { setTimeout(() => list.classList.remove('show'), 150); });
+    }
+
+    function updateDpHighlight() {
+        document.querySelectorAll('#dp-autocomplete .autocomplete-item').forEach((el, i) => {
+            el.classList.toggle('selected', i === dpSelectedIndex);
+        });
+    }
+
+    function selectDP(index) {
+        if (index < 0 || index >= dpFiltered.length) return;
+        const c = dpFiltered[index];
+        document.getElementById('acc-dp').value = c.code;
+        document.getElementById('dp-autocomplete').classList.remove('show');
+    }
+
+    // --- Password toggles ---
+    function setupPasswordToggles() {
+        document.querySelectorAll('.pw-toggle').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const target = document.getElementById(btn.dataset.target);
+                const isPassword = target.type === 'password';
+                target.type = isPassword ? 'text' : 'password';
+                btn.querySelector('i').className = isPassword ? 'fas fa-eye-slash' : 'fas fa-eye';
+            });
+        });
+    }
+
+    // --- Issues ---
+    async function loadIssues() {
+        const list = document.getElementById('issues-list');
+        list.innerHTML = '<div class="empty-state"><span class="spinner" style="width:24px;height:24px;"></span><p style="margin-top:12px;">Fetching open issues from CDSC...</p></div>';
+        try {
+            const resp = await fetch(API + '/issues');
+            const data = await resp.json();
+            issues = data.issues || [];
+            if (data.account_errors && data.account_errors.length) {
+                data.account_errors.forEach(e => showToast(`${e.username}: ${e.error}`, 'warning'));
+            }
+            renderIssues();
+        } catch(e) { list.innerHTML = '<div class="empty-state"><i class="fas fa-exclamation-triangle"></i><p>Failed to load issues.</p></div>'; }
+    }
+
+    function renderIssues() {
+        const list = document.getElementById('issues-list');
+        if (!issues.length) {
+            list.innerHTML = '<div class="empty-state"><i class="fas fa-inbox"></i><p>No open issues found.</p></div>';
+            return;
+        }
+        list.innerHTML = issues.map(issue => {
+            const selected = accounts.filter(a => selectedAccounts.has(a.username));
+            const statusHtml = selected.length ? selected.map(a => {
+                const status = issue.is_applied ? 'Applied' : (issue.is_unapplied_ordinary_share ? 'Not Applied' : 'Ineligible');
+                const dotClass = status === 'Applied' ? 'green' : (status === 'Not Applied' ? 'yellow' : 'gray');
+                return `<div class="status-item"><span class="status-dot ${dotClass}"></span>${a.user} <span class="badge badge-${dotClass === 'green' ? 'success' : dotClass === 'yellow' ? 'warning' : 'gray'}">${status}</span></div>`;
+            }).join('') : '<div style="font-size:12px;color:var(--text-gray);">Select accounts in the Accounts tab first.</div>';
+
+            return `
+            <div class="issue-card">
+                <div class="issue-header">
+                    <div>
+                        <div class="issue-name">${issue.company_name}</div>
+                        <div class="issue-meta">
+                            <span class="issue-meta-item"><i class="fas fa-tag"></i>${issue.scrip}</span>
+                            <span class="issue-meta-item"><i class="fas fa-hashtag"></i>${issue.share_type_name}</span>
+                            <span class="issue-meta-item"><i class="fas fa-layer-group"></i>${issue.subgroup}</span>
+                            <span class="issue-meta-item"><i class="fas fa-shield-alt"></i>${issue.share_group_name}</span>
+                        </div>
+                    </div>
+                    <span class="badge badge-gold">${issue.status_name}</span>
+                </div>
+                <div class="issue-dates">
+                    <div class="issue-date"><i class="fas fa-calendar-plus"></i> Open: <strong>${issue.issue_open_date || 'N/A'}</strong></div>
+                    <div class="issue-date"><i class="fas fa-calendar-minus"></i> Close: <strong>${issue.issue_close_date || 'N/A'}</strong></div>
+                </div>
+                <div class="status-matrix">${statusHtml}</div>
+                <div class="apply-controls">
+                    <label style="margin:0;white-space:nowrap;">Kitta:</label>
+                    <input type="number" class="kitta-input apply-kitta" value="10" min="10" step="10" data-csid="${issue.company_share_id}">
+                    <button class="btn btn-gold btn-sm bulk-apply-btn" data-csid="${issue.company_share_id}"><i class="fas fa-bolt"></i> Bulk Apply Selected</button>
+                </div>
+            </div>`;
+        }).join('');
+
+        list.querySelectorAll('.bulk-apply-btn').forEach(btn => {
+            btn.addEventListener('click', () => handleBulkApply(parseInt(btn.dataset.csid)));
+        });
+    }
+
+    // --- Bulk Apply ---
+    async function handleBulkApply(companyShareId) {
+        const selected = [...selectedAccounts];
+        if (!selected.length) { showToast('Select at least one account first', 'warning'); return; }
+        const kittaInput = document.querySelector(`.apply-kitta[data-csid="${companyShareId}"]`);
+        const kitta = parseInt(kittaInput?.value || 10);
+
+        try {
+            const resp = await fetch(API + '/apply', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ usernames: selected, company_share_id: companyShareId, kitta })
+            });
+            const data = await resp.json();
+            if (data.task_id) {
+                openProgressModal(data.task_id, selected.length);
+            } else {
+                showToast('Failed to start apply task', 'danger');
+            }
+        } catch(e) { showToast('Network error', 'danger'); }
+    }
+
+    function openProgressModal(taskId, total) {
+        document.getElementById('progress-fill').style.width = '0%';
+        document.getElementById('progress-counter').textContent = `0 / ${total}`;
+        document.getElementById('progress-log').innerHTML = '';
+        document.getElementById('close-progress-btn').disabled = true;
+        document.getElementById('progress-info').textContent = `Task ID: ${taskId}`;
+        document.getElementById('progress-modal').classList.add('show');
+        pollTask(taskId);
+    }
+
+    function closeProgressModal() {
+        document.getElementById('progress-modal').classList.remove('show');
+        if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
+    }
+
+    async function pollTask(taskId) {
+        if (pollInterval) clearInterval(pollInterval);
+        let elapsed = 0;
+        pollInterval = setInterval(async () => {
+            elapsed++;
+            if (elapsed > 300) { clearInterval(pollInterval); showToast('Task timed out', 'danger'); document.getElementById('close-progress-btn').disabled = false; return; }
+            try {
+                const resp = await fetch(API + '/tasks/' + taskId);
+                const task = await resp.json();
+                const pct = task.total > 0 ? (task.completed / task.total * 100) : 0;
+                document.getElementById('progress-fill').style.width = pct + '%';
+                document.getElementById('progress-counter').textContent = `${task.completed} / ${task.total}`;
+
+                const log = document.getElementById('progress-log');
+                const existing = log.children.length;
+                for (let i = existing; i < task.results.length; i++) {
+                    const r = task.results[i];
+                    const entry = document.createElement('div');
+                    entry.className = 'log-entry';
+                    entry.innerHTML = `<i class="fas ${r.success ? 'fa-check-circle success' : 'fa-times-circle fail'}"></i> ${r.user || r.username}: ${r.message}`;
+                    log.appendChild(entry);
+                }
+                log.scrollTop = log.scrollHeight;
+
+                if (task.status === 'completed') {
+                    clearInterval(pollInterval);
+                    document.getElementById('close-progress-btn').disabled = false;
+                    const successes = task.results.filter(r => r.success).length;
+                    showToast(`Apply complete: ${successes}/${task.total} successful`, successes === task.total ? 'success' : 'warning');
+                }
+            } catch(e) { /* ignore poll errors */ }
+        }, 1000);
+    }
+
+    // --- Reports ---
+    document.getElementById('generate-reports-btn')?.addEventListener('click', loadReports);
+
+    async function loadReports() {
+        const list = document.getElementById('reports-list');
+        const selected = [...selectedAccounts];
+        if (!selected.length) { showToast('Select at least one account first', 'warning'); return; }
+
+        list.innerHTML = '<div class="empty-state"><span class="spinner" style="width:24px;height:24px;"></span><p style="margin-top:12px;">Generating allotment reports...</p></div>';
+        try {
+            const resp = await fetch(API + '/reports?usernames=' + selected.join(','));
+            const data = await resp.json();
+            renderReports(data);
+        } catch(e) { list.innerHTML = '<div class="empty-state"><i class="fas fa-exclamation-triangle"></i><p>Failed to load reports.</p></div>'; }
+    }
+
+    function renderReports(data) {
+        const list = document.getElementById('reports-list');
+        const keys = Object.keys(data);
+        if (!keys.length) {
+            list.innerHTML = '<div class="empty-state"><i class="fas fa-file-alt"></i><p>No reports available.</p></div>';
+            return;
+        }
+        list.innerHTML = keys.map(username => {
+            const acc = data[username];
+            const reports = acc.reports || [];
+            const error = acc.error;
+            if (error) return `<div class="card"><div class="card-header"><span class="card-title">${acc.user || username}</span><span class="badge badge-danger">Error</span></div><p style="font-size:13px;color:var(--danger);">${error}</p></div>`;
+
+            const rows = reports.map(r => {
+                const statusClass = r.allotmentStatus === 'ALLOTTED' ? 'success' : (r.allotmentStatus === 'NOT_ALLOTTED' ? 'danger' : 'gray');
+                return `<tr>
+                    <td>${r.companyName || 'N/A'}</td>
+                    <td>${r.scrip || 'N/A'}</td>
+                    <td>${r.appliedKitta || 'N/A'}</td>
+                    <td><span class="badge badge-gray">${r.verifyStatus || 'N/A'}</span></td>
+                    <td><span class="badge badge-${statusClass}">${r.allotmentStatus || 'N/A'}</span></td>
+                </tr>`;
+            }).join('');
+
+            return `
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">${acc.user || username}</span>
+                    <span class="badge badge-gold">${reports.length} application${reports.length !== 1 ? 's' : ''}</span>
+                </div>
+                <div class="table-wrap">
+                    <table>
+                        <thead><tr><th>Company</th><th>Scrip</th><th>Kitta</th><th>Verify Status</th><th>Allotment</th></tr></thead>
+                        <tbody>${rows || '<tr><td colspan="5" style="text-align:center;color:var(--text-gray);">No applications found</td></tr>'}</tbody>
+                    </table>
+                </div>
+            </div>`;
+        }).join('');
+    }
+})();
+</script>
+</body>
+</html>

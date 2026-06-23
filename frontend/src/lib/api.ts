@@ -53,11 +53,11 @@ export interface CompanyStats {
 
 export interface IndicatorData {
   date: string;
-  open: number;
-  high: number;
-  low: number;
   close: number;
-  volume: number;
+  open?: number;
+  high?: number;
+  low?: number;
+  volume?: number;
   sma20?: number;
   sma50?: number;
   ema12?: number;

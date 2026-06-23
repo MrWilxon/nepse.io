@@ -42,12 +42,6 @@ const server = http.createServer(app);
 const wss = new WebSocketServer({ server, path: "/ws" });
 
 const clients = new Set();
-wss.on("connection", (ws) => {
-  clients.add(ws);
-  ws.on("close", () => clients.delete(ws));
-  ws.on("error", () => clients.delete(ws));
-  ws.send(JSON.stringify({ type: "connected", message: "Connected to NEPSE live feed" }));
-});
 
 function broadcast(data) {
   const msg = JSON.stringify(data);
@@ -2831,14 +2825,12 @@ scheduleAutoScrape();
 // TRADING FEATURES
 // ═══════════════════════════════════════════════════════════
 
-// --- Paper Trading Simulator ---
-const paperTrading = {
-  balance: 1000000,
-  initialBalance: 1000000,
-  holdings: {},
-  history: [],
-  nextId: 1,
-};
+// --- Paper Trading Simulator (Supabase-backed) ---
+async function getPaperAccount() {
+  if (!supabase) return { balance: 1000000, initial_balance: 1000000 };
+  const { data } = await supabase.from("paper_account").select("*").limit(1).single();
+  return data || { balance: 1000000, initial_balance: 1000000 };
+}
 
 function getPaperPrice(symbol) {
   const csvData = readCompanyCSV(symbol);
@@ -2849,7 +2841,7 @@ function getPaperPrice(symbol) {
   return Math.round((Math.random() * 800 + 100) * 100) / 100;
 }
 
-app.post("/api/paper-trading/order", (req, res) => {
+app.post("/api/paper-trading/order", async (req, res) => {
   const { symbol, type, quantity } = req.body;
   if (!symbol || !type || !quantity || quantity <= 0) {
     return res.status(400).json({ error: "symbol, type (buy/sell), quantity required" });
@@ -2858,65 +2850,87 @@ app.post("/api/paper-trading/order", (req, res) => {
   const price = getPaperPrice(sym);
   const totalCost = price * quantity;
 
+  if (!supabase) return res.status(500).json({ error: "Database not available" });
+
+  const account = await getPaperAccount();
+  let balance = parseFloat(account.balance);
+
   if (type === "buy") {
-    if (totalCost > paperTrading.balance) {
-      return res.status(400).json({ error: "Insufficient balance", balance: paperTrading.balance, cost: totalCost });
+    if (totalCost > balance) {
+      return res.status(400).json({ error: "Insufficient balance", balance, cost: totalCost });
     }
-    paperTrading.balance -= totalCost;
-    paperTrading.holdings[sym] = paperTrading.holdings[sym] || { shares: 0, avgPrice: 0, totalCost: 0 };
-    const h = paperTrading.holdings[sym];
-    h.totalCost += totalCost;
-    h.shares += quantity;
-    h.avgPrice = h.totalCost / h.shares;
+    balance -= totalCost;
+    await supabase.from("paper_account").update({ balance, updated_at: new Date().toISOString() }).eq("id", account.id);
+
+    const { data: existing } = await supabase.from("paper_holdings").select("*").eq("symbol", sym).single();
+    if (existing) {
+      const newTotalCost = parseFloat(existing.total_cost) + totalCost;
+      const newShares = existing.shares + quantity;
+      await supabase.from("paper_holdings").update({ shares: newShares, total_cost: newTotalCost, avg_price: newTotalCost / newShares, updated_at: new Date().toISOString() }).eq("symbol", sym);
+    } else {
+      await supabase.from("paper_holdings").insert({ symbol: sym, shares: quantity, total_cost: totalCost, avg_price: price });
+    }
   } else if (type === "sell") {
-    const h = paperTrading.holdings[sym];
+    const { data: h } = await supabase.from("paper_holdings").select("*").eq("symbol", sym).single();
     if (!h || h.shares < quantity) {
       return res.status(400).json({ error: "Insufficient shares", available: h ? h.shares : 0, requested: quantity });
     }
-    paperTrading.balance += totalCost;
-    h.shares -= quantity;
-    h.totalCost = h.avgPrice * h.shares;
-    if (h.shares === 0) delete paperTrading.holdings[sym];
+    balance += totalCost;
+    await supabase.from("paper_account").update({ balance, updated_at: new Date().toISOString() }).eq("id", account.id);
+
+    const newShares = h.shares - quantity;
+    if (newShares === 0) {
+      await supabase.from("paper_holdings").delete().eq("symbol", sym);
+    } else {
+      const newTotalCost = h.avg_price * newShares;
+      await supabase.from("paper_holdings").update({ shares: newShares, total_cost: newTotalCost, updated_at: new Date().toISOString() }).eq("symbol", sym);
+    }
   }
 
-  const trade = {
-    id: paperTrading.nextId++,
-    symbol: sym, type, quantity, price, total: totalCost,
-    timestamp: new Date().toISOString(),
-    balanceAfter: paperTrading.balance,
-  };
-  paperTrading.history.unshift(trade);
+  const { data: trade } = await supabase.from("paper_trades").insert({
+    symbol: sym, type, quantity, price, total: totalCost, balance_after: balance,
+  }).select().single();
 
-  res.json({ trade, balance: paperTrading.balance, holdings: paperTrading.holdings });
+  res.json({ trade, balance, holdings: {} });
 });
 
-app.get("/api/paper-trading/portfolio", (req, res) => {
-  const holdingsArray = Object.entries(paperTrading.holdings).map(([sym, h]) => {
-    const currentPrice = getPaperPrice(sym);
+app.get("/api/paper-trading/portfolio", async (req, res) => {
+  if (!supabase) return res.json({ balance: 1000000, totalMarketValue: 0, totalPortfolioValue: 1000000, initialBalance: 1000000, totalReturn: 0, holdings: [], recentTrades: [] });
+
+  const account = await getPaperAccount();
+  const balance = parseFloat(account.balance);
+  const initialBalance = parseFloat(account.initial_balance);
+
+  const { data: dbHoldings } = await supabase.from("paper_holdings").select("*");
+  const holdingsArray = (dbHoldings || []).map((h) => {
+    const currentPrice = getPaperPrice(h.symbol);
     const marketValue = currentPrice * h.shares;
-    const pnl = marketValue - h.totalCost;
-    const pnlPct = h.totalCost > 0 ? (pnl / h.totalCost * 100).toFixed(2) : 0;
-    return { symbol: sym, ...h, currentPrice, marketValue, pnl: Math.round(pnl * 100) / 100, pnlPct: parseFloat(pnlPct) };
+    const pnl = marketValue - parseFloat(h.total_cost);
+    const pnlPct = h.total_cost > 0 ? (pnl / parseFloat(h.total_cost) * 100).toFixed(2) : 0;
+    return { symbol: h.symbol, shares: h.shares, avgPrice: parseFloat(h.avg_price), totalCost: parseFloat(h.total_cost), currentPrice, marketValue, pnl: Math.round(pnl * 100) / 100, pnlPct: parseFloat(pnlPct) };
   });
   const totalMarketValue = holdingsArray.reduce((s, h) => s + h.marketValue, 0);
-  const totalPnL = holdingsArray.reduce((s, h) => s + h.pnl, 0);
+
+  const { data: recentTrades } = await supabase.from("paper_trades").select("*").order("created_at", { ascending: false }).limit(20);
+
   res.json({
-    balance: paperTrading.balance,
+    balance,
     totalMarketValue: Math.round(totalMarketValue * 100) / 100,
-    totalPortfolioValue: Math.round((paperTrading.balance + totalMarketValue) * 100) / 100,
-    initialBalance: paperTrading.initialBalance,
-    totalReturn: Math.round(((paperTrading.balance + totalMarketValue - paperTrading.initialBalance) / paperTrading.initialBalance * 100) * 100) / 100,
+    totalPortfolioValue: Math.round((balance + totalMarketValue) * 100) / 100,
+    initialBalance,
+    totalReturn: Math.round(((balance + totalMarketValue - initialBalance) / initialBalance * 100) * 100) / 100,
     holdings: holdingsArray,
-    recentTrades: paperTrading.history.slice(0, 20),
+    recentTrades: (recentTrades || []).map(t => ({ id: t.id, symbol: t.symbol, type: t.type, quantity: t.quantity, price: parseFloat(t.price), total: parseFloat(t.total), timestamp: t.created_at, balanceAfter: parseFloat(t.balance_after) })),
   });
 });
 
-app.post("/api/paper-trading/reset", (req, res) => {
-  paperTrading.balance = paperTrading.initialBalance;
-  paperTrading.holdings = {};
-  paperTrading.history = [];
-  paperTrading.nextId = 1;
-  res.json({ message: "Paper trading account reset", balance: paperTrading.balance });
+app.post("/api/paper-trading/reset", async (req, res) => {
+  if (!supabase) return res.json({ message: "Paper trading account reset", balance: 1000000 });
+  await supabase.from("paper_trades").delete().neq("id", 0);
+  await supabase.from("paper_holdings").delete().neq("id", 0);
+  const { data: account } = await supabase.from("paper_account").select("id").limit(1).single();
+  if (account) await supabase.from("paper_account").update({ balance: 1000000, updated_at: new Date().toISOString() }).eq("id", account.id);
+  res.json({ message: "Paper trading account reset", balance: 1000000 });
 });
 
 // --- Order Book Depth ---
@@ -2958,39 +2972,53 @@ app.get("/api/order-book/:symbol", (req, res) => {
   });
 });
 
-// --- Trade Journal ---
-const tradeJournal = { entries: [], nextId: 1 };
+// --- Trade Journal (Supabase-backed) ---
+app.get("/api/journal", async (req, res) => {
+  if (!supabase) return res.json({ entries: [], stats: { totalTrades: 0, wins: 0, losses: 0, winRate: 0, totalPnL: 0, avgWin: 0, avgLoss: 0, profitFactor: 0, expectancy: 0 } });
 
-app.get("/api/journal", (req, res) => {
   const { symbol, strategy, from, to } = req.query;
-  let filtered = [...tradeJournal.entries];
-  if (symbol) filtered = filtered.filter((e) => e.symbol === symbol.toUpperCase());
-  if (strategy) filtered = filtered.filter((e) => e.strategy === strategy);
-  if (from) filtered = filtered.filter((e) => e.exitDate >= from);
-  if (to) filtered = filtered.filter((e) => e.exitDate <= to);
+  let query = supabase.from("journal_entries").select("*");
+  if (symbol) query = query.eq("symbol", symbol.toUpperCase());
+  if (strategy) query = query.eq("strategy", strategy);
+  if (from) query = query.gte("exit_date", from);
+  if (to) query = query.lte("exit_date", to);
+  query = query.order("created_at", { ascending: false });
+  const { data: filtered } = await query;
 
-  const wins = filtered.filter((e) => e.pnl > 0);
-  const losses = filtered.filter((e) => e.pnl < 0);
-  const totalPnL = filtered.reduce((s, e) => s + e.pnl, 0);
+  const entries = (filtered || []).map(e => ({
+    id: e.id, symbol: e.symbol, type: e.type,
+    entryPrice: parseFloat(e.entry_price), exitPrice: parseFloat(e.exit_price),
+    quantity: e.quantity, pnl: parseFloat(e.pnl), pnlPct: parseFloat(e.pnl_pct),
+    entryDate: e.entry_date, exitDate: e.exit_date,
+    strategy: e.strategy, notes: e.notes,
+    stopLoss: e.stop_loss ? parseFloat(e.stop_loss) : null,
+    takeProfit: e.take_profit ? parseFloat(e.take_profit) : null,
+    riskReward: e.risk_reward ? parseFloat(e.risk_reward) : null,
+    createdAt: e.created_at,
+  }));
+
+  const wins = entries.filter((e) => e.pnl > 0);
+  const losses = entries.filter((e) => e.pnl < 0);
+  const totalPnL = entries.reduce((s, e) => s + e.pnl, 0);
   const avgWin = wins.length > 0 ? wins.reduce((s, e) => s + e.pnl, 0) / wins.length : 0;
   const avgLoss = losses.length > 0 ? Math.abs(losses.reduce((s, e) => s + e.pnl, 0) / losses.length) : 0;
 
   res.json({
-    entries: filtered,
+    entries,
     stats: {
-      totalTrades: filtered.length,
+      totalTrades: entries.length,
       wins: wins.length, losses: losses.length,
-      winRate: filtered.length > 0 ? parseFloat((wins.length / filtered.length * 100).toFixed(1)) : 0,
+      winRate: entries.length > 0 ? parseFloat((wins.length / entries.length * 100).toFixed(1)) : 0,
       totalPnL: Math.round(totalPnL * 100) / 100,
       avgWin: Math.round(avgWin * 100) / 100,
       avgLoss: Math.round(avgLoss * 100) / 100,
       profitFactor: avgLoss > 0 ? parseFloat((avgWin / avgLoss).toFixed(2)) : 0,
-      expectancy: filtered.length > 0 ? Math.round(totalPnL / filtered.length * 100) / 100 : 0,
+      expectancy: entries.length > 0 ? Math.round(totalPnL / entries.length * 100) / 100 : 0,
     },
   });
 });
 
-app.post("/api/journal", (req, res) => {
+app.post("/api/journal", async (req, res) => {
   const { symbol, type, entryPrice, exitPrice, quantity, entryDate, exitDate, strategy, notes, stopLoss, takeProfit } = req.body;
   if (!symbol || !entryPrice || !exitPrice || !quantity) {
     return res.status(400).json({ error: "symbol, entryPrice, exitPrice, quantity required" });
@@ -2998,29 +3026,41 @@ app.post("/api/journal", (req, res) => {
   const pnl = type === "sell"
     ? (entryPrice - exitPrice) * quantity
     : (exitPrice - entryPrice) * quantity;
-  const entry = {
-    id: tradeJournal.nextId++,
+
+  if (!supabase) return res.status(500).json({ error: "Database not available" });
+
+  const { data, error } = await supabase.from("journal_entries").insert({
     symbol: symbol.toUpperCase(), type: type || "buy",
-    entryPrice: parseFloat(entryPrice), exitPrice: parseFloat(exitPrice),
+    entry_price: parseFloat(entryPrice), exit_price: parseFloat(exitPrice),
     quantity: parseInt(quantity), pnl: Math.round(pnl * 100) / 100,
-    pnlPct: parseFloat(((pnl / (entryPrice * quantity)) * 100).toFixed(2)),
-    entryDate: entryDate || new Date().toISOString().split("T")[0],
-    exitDate: exitDate || new Date().toISOString().split("T")[0],
+    pnl_pct: parseFloat(((pnl / (entryPrice * quantity)) * 100).toFixed(2)),
+    entry_date: entryDate || new Date().toISOString().split("T")[0],
+    exit_date: exitDate || new Date().toISOString().split("T")[0],
     strategy: strategy || "Unknown", notes: notes || "",
-    stopLoss: stopLoss ? parseFloat(stopLoss) : null,
-    takeProfit: takeProfit ? parseFloat(takeProfit) : null,
-    riskReward: takeProfit && stopLoss ? parseFloat(((Math.abs(takeProfit - entryPrice)) / Math.abs(entryPrice - stopLoss)).toFixed(2)) : null,
-    createdAt: new Date().toISOString(),
-  };
-  tradeJournal.entries.unshift(entry);
-  res.json(entry);
+    stop_loss: stopLoss ? parseFloat(stopLoss) : null,
+    take_profit: takeProfit ? parseFloat(takeProfit) : null,
+    risk_reward: takeProfit && stopLoss ? parseFloat(((Math.abs(takeProfit - entryPrice)) / Math.abs(entryPrice - stopLoss)).toFixed(2)) : null,
+  }).select().single();
+
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({
+    id: data.id, symbol: data.symbol, type: data.type,
+    entryPrice: parseFloat(data.entry_price), exitPrice: parseFloat(data.exit_price),
+    quantity: data.quantity, pnl: parseFloat(data.pnl), pnlPct: parseFloat(data.pnl_pct),
+    entryDate: data.entry_date, exitDate: data.exit_date,
+    strategy: data.strategy, notes: data.notes,
+    stopLoss: data.stop_loss ? parseFloat(data.stop_loss) : null,
+    takeProfit: data.take_profit ? parseFloat(data.take_profit) : null,
+    riskReward: data.risk_reward ? parseFloat(data.risk_reward) : null,
+    createdAt: data.created_at,
+  });
 });
 
-app.delete("/api/journal/:id", (req, res) => {
+app.delete("/api/journal/:id", async (req, res) => {
   const id = parseInt(req.params.id);
-  const idx = tradeJournal.entries.findIndex((e) => e.id === id);
-  if (idx === -1) return res.status(404).json({ error: "Entry not found" });
-  tradeJournal.entries.splice(idx, 1);
+  if (!supabase) return res.status(500).json({ error: "Database not available" });
+  const { error } = await supabase.from("journal_entries").delete().eq("id", id);
+  if (error) return res.status(500).json({ error: error.message });
   res.json({ message: "Deleted" });
 });
 
@@ -3059,20 +3099,21 @@ app.post("/api/risk-calculator", (req, res) => {
   res.json(result);
 });
 
-// --- Portfolio Tracker ---
-const portfolioData = { holdings: {}, history: [], cash: 0, nextId: 1 };
+// --- Portfolio Tracker (Supabase-backed) ---
+app.get("/api/portfolio", async (req, res) => {
+  if (!supabase) return res.json({ holdings: [], summary: { totalValue: 0, totalInvested: 0, totalPnL: 0, totalPnLPct: 0, cash: 0, holdingsCount: 0 } });
 
-app.get("/api/portfolio", (req, res) => {
-  const holdingsArray = Object.entries(portfolioData.holdings).map(([sym, h]) => {
-    const currentPrice = getPaperPrice(sym);
+  const { data: dbHoldings } = await supabase.from("portfolio_holdings").select("*");
+  const holdingsArray = (dbHoldings || []).map((h) => {
+    const currentPrice = getPaperPrice(h.symbol);
     const marketValue = currentPrice * h.shares;
-    const pnl = marketValue - h.totalInvested;
+    const pnl = marketValue - parseFloat(h.total_invested);
     return {
-      symbol: sym, ...h, currentPrice,
+      symbol: h.symbol, shares: h.shares, avgPrice: parseFloat(h.avg_price), totalInvested: parseFloat(h.total_invested), currentPrice,
       marketValue: Math.round(marketValue * 100) / 100,
       pnl: Math.round(pnl * 100) / 100,
-      pnlPct: h.totalInvested > 0 ? parseFloat((pnl / h.totalInvested * 100).toFixed(2)) : 0,
-      dayChange: Math.round((currentPrice - h.avgPrice) * 0.02 * 100) / 100,
+      pnlPct: h.total_invested > 0 ? parseFloat((pnl / parseFloat(h.total_invested) * 100).toFixed(2)) : 0,
+      dayChange: Math.round((currentPrice - parseFloat(h.avg_price)) * 0.02 * 100) / 100,
     };
   });
   const totalValue = holdingsArray.reduce((s, h) => s + h.marketValue, 0);
@@ -3085,113 +3126,60 @@ app.get("/api/portfolio", (req, res) => {
       totalInvested: Math.round(totalInvested * 100) / 100,
       totalPnL: Math.round(totalPnL * 100) / 100,
       totalPnLPct: totalInvested > 0 ? parseFloat((totalPnL / totalInvested * 100).toFixed(2)) : 0,
-      cash: portfolioData.cash,
+      cash: 0,
       holdingsCount: holdingsArray.length,
     },
   });
 });
 
-app.post("/api/portfolio/holdings", (req, res) => {
+app.post("/api/portfolio/holdings", async (req, res) => {
   const { symbol, type, quantity, price } = req.body;
   if (!symbol || !quantity || !price) return res.status(400).json({ error: "symbol, quantity, price required" });
   const sym = symbol.toUpperCase();
   const qty = parseInt(quantity);
   const px = parseFloat(price);
-  portfolioData.holdings[sym] = portfolioData.holdings[sym] || { shares: 0, avgPrice: 0, totalInvested: 0 };
-  const h = portfolioData.holdings[sym];
+
+  if (!supabase) return res.status(500).json({ error: "Database not available" });
+
+  const { data: existing } = await supabase.from("portfolio_holdings").select("*").eq("symbol", sym).single();
 
   if (type === "sell") {
-    if (h.shares < qty) return res.status(400).json({ error: "Insufficient shares" });
-    h.shares -= qty;
-    h.totalInvested = h.avgPrice * h.shares;
-    if (h.shares === 0) { h.avgPrice = 0; h.totalInvested = 0; }
+    if (!existing || existing.shares < qty) return res.status(400).json({ error: "Insufficient shares" });
+    const newShares = existing.shares - qty;
+    if (newShares === 0) {
+      await supabase.from("portfolio_holdings").delete().eq("symbol", sym);
+    } else {
+      const newInvested = parseFloat(existing.avg_price) * newShares;
+      await supabase.from("portfolio_holdings").update({ shares: newShares, total_invested: newInvested, updated_at: new Date().toISOString() }).eq("symbol", sym);
+    }
   } else {
-    h.totalInvested += px * qty;
-    h.shares += qty;
-    h.avgPrice = h.totalInvested / h.shares;
+    if (existing) {
+      const newInvested = parseFloat(existing.total_invested) + px * qty;
+      const newShares = existing.shares + qty;
+      await supabase.from("portfolio_holdings").update({ shares: newShares, total_invested: newInvested, avg_price: newInvested / newShares, updated_at: new Date().toISOString() }).eq("symbol", sym);
+    } else {
+      await supabase.from("portfolio_holdings").insert({ symbol: sym, shares: qty, avg_price: px, total_invested: px * qty });
+    }
   }
-  portfolioData.history.unshift({ id: portfolioData.nextId++, symbol: sym, type: type || "buy", quantity: qty, price: px, date: new Date().toISOString() });
-  res.json({ message: "Updated", holding: { symbol: sym, ...h } });
+
+  await supabase.from("portfolio_transactions").insert({ symbol: sym, type: type || "buy", quantity: qty, price: px });
+  res.json({ message: "Updated", holding: { symbol: sym, shares: qty, avgPrice: px } });
 });
 
-app.delete("/api/portfolio/holdings/:symbol", (req, res) => {
+app.delete("/api/portfolio/holdings/:symbol", async (req, res) => {
   const sym = req.params.symbol.toUpperCase();
-  if (!portfolioData.holdings[sym]) return res.status(404).json({ error: "Holding not found" });
-  delete portfolioData.holdings[sym];
+  if (!supabase) return res.status(500).json({ error: "Database not available" });
+  const { error } = await supabase.from("portfolio_holdings").delete().eq("symbol", sym);
+  if (error) return res.status(404).json({ error: "Holding not found" });
   res.json({ message: "Removed" });
 });
 
-// --- Community: Per-Company Discussion Threads ---
-const communityThreads = {};
-let communityNextId = 1;
+// --- Community: Per-Company Discussion Threads (Supabase-backed) ---
+async function seedCommunityData() {
+  if (!supabase) return;
+  const { count } = await supabase.from("community_posts").select("*", { count: "exact", head: true });
+  if (count > 0) return; // already seeded
 
-function getThread(symbol) {
-  if (!communityThreads[symbol]) communityThreads[symbol] = [];
-  return communityThreads[symbol];
-}
-
-app.get("/api/community/:symbol", (req, res) => {
-  const symbol = req.params.symbol.toUpperCase();
-  const threads = getThread(symbol);
-  const page = parseInt(req.query.page) || 1;
-  const limit = parseInt(req.query.limit) || 20;
-  const start = (page - 1) * limit;
-  const sorted = [...threads].sort((a, b) => b.votes - a.votes || new Date(b.createdAt) - new Date(a.createdAt));
-  const paged = sorted.slice(start, start + limit);
-  const hot = [...threads].sort((a, b) => b.votes - a.votes).slice(0, 5);
-  const recent = [...threads].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 5);
-  res.json({ symbol, posts: paged, total: threads.length, page, pages: Math.ceil(threads.length / limit), hot, recent });
-});
-
-app.post("/api/community/:symbol", (req, res) => {
-  const symbol = req.params.symbol.toUpperCase();
-  const { author, content, title, parentId } = req.body;
-  if (!content || !content.trim()) return res.status(400).json({ error: "content required" });
-  const thread = {
-    id: communityNextId++,
-    symbol,
-    author: author || "Anonymous",
-    title: title || null,
-    content: content.trim(),
-    parentId: parentId || null,
-    votes: 0,
-    replies: 0,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  };
-  const threads = getThread(symbol);
-  threads.push(thread);
-  if (parentId) {
-    const parent = threads.find((t) => t.id === parentId);
-    if (parent) parent.replies++;
-  }
-  broadcast({ type: "community_post", data: { symbol, id: thread.id, author: thread.author } });
-  res.json(thread);
-});
-
-app.post("/api/community/:symbol/:id/vote", (req, res) => {
-  const symbol = req.params.symbol.toUpperCase();
-  const id = parseInt(req.params.id);
-  const { direction } = req.body;
-  const threads = getThread(symbol);
-  const post = threads.find((t) => t.id === id);
-  if (!post) return res.status(404).json({ error: "Post not found" });
-  post.votes += direction === "up" ? 1 : -1;
-  res.json({ id: post.id, votes: post.votes });
-});
-
-app.delete("/api/community/:symbol/:id", (req, res) => {
-  const symbol = req.params.symbol.toUpperCase();
-  const id = parseInt(req.params.id);
-  const threads = getThread(symbol);
-  const idx = threads.findIndex((t) => t.id === id);
-  if (idx === -1) return res.status(404).json({ error: "Post not found" });
-  threads.splice(idx, 1);
-  res.json({ message: "Deleted" });
-});
-
-// Seed some sample discussion data
-function seedCommunityData() {
   const symbols = Object.keys(CATEGORY_MAP).slice(0, 20);
   const sampleAuthors = ["InvestorKathmandu", "NepalTrader", "MarketWatcher", "StockGuruNP", "BullishNEPSE", "ValueHunter", "TechAnalyst_NP", "DividendKing"];
   const sampleTitles = [
@@ -3214,30 +3202,100 @@ function seedCommunityData() {
     "Management recently increased their stake. Confidence signal.",
     "The sector rotation data suggests banking stocks may outperform next quarter.",
   ];
+  const rows = [];
   for (const symbol of symbols) {
-    const threads = getThread(symbol);
     const numPosts = 3 + Math.floor(Math.random() * 8);
     for (let i = 0; i < numPosts; i++) {
       const daysAgo = Math.floor(Math.random() * 60);
       const date = new Date();
       date.setDate(date.getDate() - daysAgo);
       date.setHours(Math.floor(Math.random() * 18) + 6);
-      threads.push({
-        id: communityNextId++,
+      rows.push({
         symbol,
         author: sampleAuthors[Math.floor(Math.random() * sampleAuthors.length)],
         title: sampleTitles[Math.floor(Math.random() * sampleTitles.length)],
         content: sampleContents[Math.floor(Math.random() * sampleContents.length)],
-        parentId: null,
+        parent_id: null,
         votes: Math.floor(Math.random() * 50) - 5,
         replies: Math.floor(Math.random() * 12),
-        createdAt: date.toISOString(),
-        updatedAt: date.toISOString(),
+        created_at: date.toISOString(),
+        updated_at: date.toISOString(),
       });
     }
   }
+  // Insert in batches of 50
+  for (let i = 0; i < rows.length; i += 50) {
+    await supabase.from("community_posts").insert(rows.slice(i, i + 50));
+  }
+  console.log(`Seeded ${rows.length} community posts`);
 }
 seedCommunityData();
+
+app.get("/api/community/:symbol", async (req, res) => {
+  const symbol = req.params.symbol.toUpperCase();
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.limit) || 20;
+  const start = (page - 1) * limit;
+
+  if (!supabase) return res.json({ symbol, posts: [], total: 0, page, pages: 0, hot: [], recent: [] });
+
+  const { count } = await supabase.from("community_posts").select("*", { count: "exact", head: true }).eq("symbol", symbol);
+  const { data: posts } = await supabase.from("community_posts").select("*").eq("symbol", symbol).order("votes", { ascending: false }).range(start, start + limit - 1);
+  const { data: hot } = await supabase.from("community_posts").select("*").eq("symbol", symbol).order("votes", { ascending: false }).limit(5);
+  const { data: recent } = await supabase.from("community_posts").select("*").eq("symbol", symbol).order("created_at", { ascending: false }).limit(5);
+
+  res.json({ symbol, posts: posts || [], total: count || 0, page, pages: Math.ceil((count || 0) / limit), hot: hot || [], recent: recent || [] });
+});
+
+app.post("/api/community/:symbol", async (req, res) => {
+  const symbol = req.params.symbol.toUpperCase();
+  const { author, content, title, parentId } = req.body;
+  if (!content || !content.trim()) return res.status(400).json({ error: "content required" });
+
+  if (!supabase) return res.status(500).json({ error: "Database not available" });
+
+  const { data, error } = await supabase.from("community_posts").insert({
+    symbol,
+    author: author || "Anonymous",
+    title: title || null,
+    content: content.trim(),
+    parent_id: parentId || null,
+    votes: 0,
+    replies: 0,
+  }).select().single();
+
+  if (error) return res.status(500).json({ error: error.message });
+
+  if (parentId) {
+    const { data: parent } = await supabase.from("community_posts").select("replies").eq("id", parentId).single();
+    if (parent) await supabase.from("community_posts").update({ replies: (parent.replies || 0) + 1 }).eq("id", parentId);
+  }
+
+  broadcast({ type: "community_post", data: { symbol, id: data.id, author: data.author } });
+  res.json({ id: data.id, symbol: data.symbol, author: data.author, title: data.title, content: data.content, parentId: data.parent_id, votes: data.votes, replies: data.replies, createdAt: data.created_at, updatedAt: data.updated_at });
+});
+
+app.post("/api/community/:symbol/:id/vote", async (req, res) => {
+  const id = parseInt(req.params.id);
+  const { direction } = req.body;
+  if (!supabase) return res.status(500).json({ error: "Database not available" });
+
+  const { data: post } = await supabase.from("community_posts").select("id, votes").eq("id", id).single();
+  if (!post) return res.status(404).json({ error: "Post not found" });
+
+  const newVotes = post.votes + (direction === "up" ? 1 : -1);
+  await supabase.from("community_posts").update({ votes: newVotes }).eq("id", id);
+  res.json({ id: post.id, votes: newVotes });
+});
+
+app.delete("/api/community/:symbol/:id", async (req, res) => {
+  const id = parseInt(req.params.id);
+  if (!supabase) return res.status(500).json({ error: "Database not available" });
+
+  const { error } = await supabase.from("community_posts").delete().eq("id", id);
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ message: "Deleted" });
+});
 
 // --- Analyst Ratings Aggregation ---
 function generateAnalystRatings(symbol) {
@@ -3431,41 +3489,44 @@ app.get("/api/holdings/:symbol", async (req, res) => {
   }
 });
 
-// --- Watchlist Alerts ---
-const watchlistAlerts = { alerts: [], nextId: 1 };
+// --- Watchlist Alerts (Supabase-backed) ---
+app.get("/api/watchlist", async (req, res) => {
+  if (!supabase) return res.json({ alerts: [], count: 0, triggeredCount: 0 });
 
-app.get("/api/watchlist", (req, res) => {
-  const enriched = watchlistAlerts.alerts.map((a) => {
+  const { data: alerts } = await supabase.from("watchlist_alerts").select("*").order("created_at", { ascending: false });
+  const enriched = (alerts || []).map((a) => {
     const currentPrice = getPaperPrice(a.symbol);
-    const triggered = currentPrice >= (a.upperTarget || Infinity) || currentPrice <= (a.lowerTarget || -Infinity);
-    return { ...a, currentPrice, triggered, lastChecked: new Date().toISOString() };
+    const triggered = currentPrice >= (a.upper_target || Infinity) || currentPrice <= (a.lower_target || -Infinity);
+    return { id: a.id, symbol: a.symbol, name: a.name, upperTarget: a.upper_target ? parseFloat(a.upper_target) : null, lowerTarget: a.lower_target ? parseFloat(a.lower_target) : null, notifyEmail: a.notify_email, notifyTelegram: a.notify_telegram, message: a.message, triggered, currentPrice, createdAt: a.created_at };
   });
   res.json({ alerts: enriched, count: enriched.length, triggeredCount: enriched.filter((a) => a.triggered).length });
 });
 
-app.post("/api/watchlist", (req, res) => {
+app.post("/api/watchlist", async (req, res) => {
   const { symbol, upperTarget, lowerTarget, name, notifyEmail, notifyTelegram, message } = req.body;
   if (!symbol) return res.status(400).json({ error: "symbol required" });
-  const alert = {
-    id: watchlistAlerts.nextId++,
+
+  if (!supabase) return res.status(500).json({ error: "Database not available" });
+
+  const { data, error } = await supabase.from("watchlist_alerts").insert({
     symbol: symbol.toUpperCase(),
     name: name || symbol.toUpperCase(),
-    upperTarget: upperTarget ? parseFloat(upperTarget) : null,
-    lowerTarget: lowerTarget ? parseFloat(lowerTarget) : null,
-    notifyEmail: notifyEmail || null,
-    notifyTelegram: notifyTelegram || null,
+    upper_target: upperTarget ? parseFloat(upperTarget) : null,
+    lower_target: lowerTarget ? parseFloat(lowerTarget) : null,
+    notify_email: notifyEmail || null,
+    notify_telegram: notifyTelegram || null,
     message: message || "",
-    triggered: false, createdAt: new Date().toISOString(),
-  };
-  watchlistAlerts.alerts.push(alert);
-  res.json(alert);
+  }).select().single();
+
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ id: data.id, symbol: data.symbol, name: data.name, upperTarget: data.upper_target ? parseFloat(data.upper_target) : null, lowerTarget: data.lower_target ? parseFloat(data.lower_target) : null, notifyEmail: data.notify_email, notifyTelegram: data.notify_telegram, message: data.message, triggered: false, createdAt: data.created_at });
 });
 
-app.delete("/api/watchlist/:id", (req, res) => {
+app.delete("/api/watchlist/:id", async (req, res) => {
   const id = parseInt(req.params.id);
-  const idx = watchlistAlerts.alerts.findIndex((a) => a.id === id);
-  if (idx === -1) return res.status(404).json({ error: "Alert not found" });
-  watchlistAlerts.alerts.splice(idx, 1);
+  if (!supabase) return res.status(500).json({ error: "Database not available" });
+  const { error } = await supabase.from("watchlist_alerts").delete().eq("id", id);
+  if (error) return res.status(500).json({ error: error.message });
   res.json({ message: "Deleted" });
 });
 
@@ -3652,15 +3713,18 @@ app.get("/api/dividend-calendar", (req, res) => {
   }
 });
 
-// --- Portfolio Transactions (for tax report) ---
-app.get("/api/portfolio/transactions", (req, res) => {
+// --- Portfolio Transactions (for tax report, Supabase-backed) ---
+app.get("/api/portfolio/transactions", async (req, res) => {
   try {
-    const transactions = portfolioData.history.map((h) => {
+    if (!supabase) return res.json({ transactions: [], count: 0 });
+
+    const { data: txns } = await supabase.from("portfolio_transactions").select("*").order("created_at", { ascending: false });
+    const transactions = (txns || []).map((h) => {
       const currentPrice = getPaperPrice(h.symbol);
       return {
-        ...h,
+        id: h.id, symbol: h.symbol, type: h.type, quantity: h.quantity, price: parseFloat(h.price), date: h.created_at,
         currentPrice,
-        pnl: Math.round((currentPrice - h.price) * h.quantity * 100) / 100,
+        pnl: Math.round((currentPrice - parseFloat(h.price)) * h.quantity * 100) / 100,
       };
     });
     res.json({ transactions, count: transactions.length });

@@ -151,10 +151,10 @@ export default function CompanyPage() {
     if (chartType === "candlestick") {
       return data.map((d) => ({
         ...d,
-        candleColor: d.close >= d.open ? "#16a34a" : "#dc2626",
-        bodyTop: Math.max(d.open, d.close),
-        bodyBottom: Math.min(d.open, d.close),
-        bodyHeight: Math.abs(d.close - d.open) || 0.1,
+        candleColor: (d.close ?? 0) >= (d.open ?? 0) ? "#16a34a" : "#dc2626",
+        bodyTop: Math.max(d.open ?? 0, d.close ?? 0),
+        bodyBottom: Math.min(d.open ?? 0, d.close ?? 0),
+        bodyHeight: Math.abs((d.close ?? 0) - (d.open ?? 0)) || 0.1,
         wickTop: d.high,
         wickBottom: d.low,
       }));
@@ -608,7 +608,7 @@ export default function CompanyPage() {
                   {data.map((entry, i) => (
                     <Cell
                       key={i}
-                      fill={entry.close >= entry.open ? "#bbf7d0" : "#fecaca"}
+                      fill={(entry.close ?? 0) >= (entry.open ?? 0) ? "#bbf7d0" : "#fecaca"}
                     />
                   ))}
                 </Bar>
@@ -643,13 +643,13 @@ export default function CompanyPage() {
                           {r.date}
                         </td>
                         <td className="px-3 py-2 text-right font-mono text-xs">
-                          {r.open.toLocaleString()}
+                          {r.open?.toLocaleString() ?? "-"}
                         </td>
                         <td className="px-3 py-2 text-right font-mono text-xs">
-                          {r.high.toLocaleString()}
+                          {r.high?.toLocaleString() ?? "-"}
                         </td>
                         <td className="px-3 py-2 text-right font-mono text-xs">
-                          {r.low.toLocaleString()}
+                          {r.low?.toLocaleString() ?? "-"}
                         </td>
                         <td className="px-3 py-2 text-right font-mono text-xs font-medium">
                           {r.close.toLocaleString()}
@@ -658,7 +658,7 @@ export default function CompanyPage() {
                           -
                         </td>
                         <td className="px-3 py-2 text-right font-mono text-xs text-[var(--text-muted)]">
-                          {r.volume.toLocaleString()}
+                          {r.volume?.toLocaleString() ?? "-"}
                         </td>
                       </tr>
                     ))}

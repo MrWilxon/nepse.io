@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
+  <defs>
+    <linearGradient id="gold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#D4A017"/>
+      <stop offset="100%" stop-color="#E8B830"/>
+    </linearGradient>
+    <linearGradient id="goldDark" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#B8860B"/>
+      <stop offset="100%" stop-color="#D4A017"/>
+    </linearGradient>
+  </defs>
+  <!-- Background rounded square -->
+  <rect x="4" y="4" width="112" height="112" rx="24" fill="url(#gold)"/>
+  <!-- Inner shadow effect -->
+  <rect x="4" y="4" width="112" height="112" rx="24" fill="none" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>
+  <!-- Upward trending chart line -->
+  <polyline points="20,82 38,68 52,74 68,48 84,38 100,24" fill="none" stroke="white" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Arrow head on the trend line -->
+  <polygon points="96,20 104,22 98,28" fill="white"/>
+  <!-- Bar chart bars -->
+  <rect x="22" y="86" width="10" height="14" rx="2" fill="rgba(255,255,255,0.4)"/>
+  <rect x="38" y="72" width="10" height="28" rx="2" fill="rgba(255,255,255,0.5)"/>
+  <rect x="54" y="62" width="10" height="38" rx="2" fill="rgba(255,255,255,0.6)"/>
+  <rect x="70" y="50" width="10" height="50" rx="2" fill="rgba(255,255,255,0.7)"/>
+  <rect x="86" y="36" width="10" height="64" rx="2" fill="rgba(255,255,255,0.85)"/>
+</svg>

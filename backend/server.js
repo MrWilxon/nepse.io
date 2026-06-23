@@ -1,11 +1,18 @@
-﻿const express = require("express");
+﻿require("dotenv").config();
+const express = require("express");
 const cors = require("cors");
 const fs = require("fs");
 const path = require("path");
 const http = require("http");
 const { WebSocketServer } = require("ws");
 const { parse } = require("csv-parse/sync");
+const { createClient } = require("@supabase/supabase-js");
 const dataProvider = require("./data-provider");
+
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+);
 
 const app = express();
 app.use(cors());
@@ -48,6 +55,7 @@ function setCachedIndicators(symbol, data) {
 
 function invalidateCache() {
   indicatorCache.clear();
+  invalidateCSVCache();
 }
 
 const rateLimitStore = new Map();
@@ -304,11 +312,59 @@ const CATEGORY_MAP = {
   ULI: "Life Insurance",
 };
 
+// Supabase data layer - preloaded into memory at startup
+const companyDataCache = new Map();
+let dataLoaded = false;
+
+async function preloadAllCompanyData() {
+  console.log("Loading all company data from Supabase...");
+  const { data: companies, error } = await supabase.from("companies").select("symbol");
+  if (error) { console.error("Failed to load companies:", error.message); return; }
+
+  for (const { symbol } of companies) {
+    // Fetch in chunks to avoid Supabase payload limits
+    let allRows = [];
+    let offset = 0;
+    const chunkSize = 1000;
+    while (true) {
+      const { data: chunk } = await supabase
+        .from("stock_prices")
+        .select("published_date, open, high, low, close, per_change, traded_quantity, traded_amount, status")
+        .eq("symbol", symbol)
+        .order("published_date", { ascending: true })
+        .range(offset, offset + chunkSize - 1);
+      if (!chunk || chunk.length === 0) break;
+      allRows = allRows.concat(chunk);
+      if (chunk.length < chunkSize) break;
+      offset += chunkSize;
+    }
+
+    if (allRows.length > 0) {
+      companyDataCache.set(symbol, allRows.map(r => ({
+        published_date: r.published_date,
+        open: String(r.open ?? ""),
+        high: String(r.high ?? ""),
+        low: String(r.low ?? ""),
+        close: String(r.close ?? ""),
+        per_change: r.per_change == null ? "nan" : String(r.per_change),
+        traded_quantity: String(r.traded_quantity ?? "0"),
+        traded_amount: String(r.traded_amount ?? "0"),
+        status: String(r.status ?? "0"),
+      })));
+    }
+  }
+  dataLoaded = true;
+  console.log(`Loaded ${companyDataCache.size} companies from Supabase`);
+}
+
 function readCompanyCSV(symbol) {
-  const filePath = path.join(DATA_DIR, `${symbol}.csv`);
-  if (!fs.existsSync(filePath)) return null;
-  const raw = fs.readFileSync(filePath, "utf-8");
-  return parse(raw, { columns: true, skip_empty_lines: true });
+  if (!dataLoaded) return null;
+  const data = companyDataCache.get(symbol);
+  return data || null;
+}
+
+function invalidateCSVCache() {
+  companyDataCache.clear();
 }
 function SMA(data, period) {
   const result = [];
@@ -629,11 +685,8 @@ function OBV(closes, volumes) {
 }
 
 function getAllCompanyData() {
-  const files = fs.readdirSync(DATA_DIR).filter((f) => f.endsWith(".csv"));
   const all = [];
-  for (const file of files) {
-    const symbol = file.replace(".csv", "");
-    const records = readCompanyCSV(symbol);
+  for (const [symbol, records] of companyDataCache) {
     if (!records || records.length === 0) continue;
     all.push({ symbol, records });
   }
@@ -654,22 +707,18 @@ function parseRecords(records) {
 }
 app.get("/api/companies", (req, res) => {
   try {
-    const files = fs.readdirSync(DATA_DIR).filter((f) => f.endsWith(".csv"));
-    const companies = files.map((file) => {
-      const symbol = file.replace(".csv", "");
-      const records = readCompanyCSV(symbol);
-      if (!records || records.length === 0) {
-        return { symbol, category: CATEGORY_MAP[symbol] || "Other", records: 0, latestClose: null, latestDate: null };
-      }
+    const companies = [];
+    for (const [symbol, records] of companyDataCache) {
+      if (!records || records.length === 0) continue;
       const latest = records[records.length - 1];
-      return {
+      companies.push({
         symbol,
         category: CATEGORY_MAP[symbol] || "Other",
         records: records.length,
         latestClose: parseFloat(latest.close) || null,
         latestDate: latest.published_date,
-      };
-    });
+      });
+    }
     res.json(companies);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -4225,7 +4274,16 @@ app.get("/api/earnings", rateLimit, (req, res) => {
 });
 
 const PORT = process.env.PORT || 4000;
-server.listen(PORT, () => {
-  console.log(`Backend API running on http://localhost:${PORT}`);
-  console.log(`WebSocket running on ws://localhost:${PORT}/ws`);
+preloadAllCompanyData().then(() => {
+  server.listen(PORT, () => {
+    console.log(`Backend API running on http://localhost:${PORT}`);
+    console.log(`WebSocket running on ws://localhost:${PORT}/ws`);
+  });
+}).catch((err) => {
+  console.error("Failed to preload data from Supabase:", err.message);
+  console.log("Starting server with empty data cache...");
+  server.listen(PORT, () => {
+    console.log(`Backend API running on http://localhost:${PORT} (no data loaded)`);
+    console.log(`WebSocket running on ws://localhost:${PORT}/ws`);
+  });
 });

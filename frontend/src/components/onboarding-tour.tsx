@@ -38,9 +38,13 @@ export default function OnboardingTour() {
         </button>
 
         <div className="flex justify-center mb-4">
-          <div className="h-16 w-16 rounded-2xl bg-gradient-to-br from-[#D4A017] to-[#E8B830] flex items-center justify-center pulse-glow">
-            <Icon className="h-8 w-8 text-primary-theme" />
-          </div>
+          {step === 0 ? (
+            <img src="/logo.svg" alt="NEPSE.io" className="h-16 w-16 rounded-2xl pulse-glow" />
+          ) : (
+            <div className="h-16 w-16 rounded-2xl bg-gradient-to-br from-[#D4A017] to-[#E8B830] flex items-center justify-center pulse-glow">
+              <Icon className="h-8 w-8 text-primary-theme" />
+            </div>
+          )}
         </div>
 
         <h2 className="text-lg font-bold text-primary-theme mb-2">{current.title}</h2>

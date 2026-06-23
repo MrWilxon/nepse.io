@@ -275,9 +275,7 @@ function InnerLayout({ children }: { children: React.ReactNode }) {
       <aside className={`fixed lg:static inset-y-0 left-0 z-50 w-64 flex-shrink-0 flex flex-col border-r transition-transform duration-300 lg:translate-x-0 overflow-y-auto bg-surface border-theme ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
         {/* Logo */}
         <div className="flex items-center gap-3 px-5 py-4 border-b border-theme">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-[#D4A017] to-[#E8B830] shadow-lg shadow-[#D4A017]/20">
-            <Zap className="h-4 w-4 text-white" />
-          </div>
+          <img src="/icon.svg" alt="NEPSE.io" className="h-9 w-9 rounded-xl shadow-lg shadow-[#D4A017]/20" />
           <div className="flex-1">
             <div className="text-sm font-bold tracking-wide text-primary-theme">NEPSE<span className="text-accent-theme">.io</span></div>
             <div className="text-[10px] text-muted-theme font-medium">Stock Analytics</div>
@@ -500,6 +498,14 @@ export default function RootLayout({
       <head>
         <link rel="manifest" href="/manifest.json" />
         <meta name="theme-color" content="#D4A017" />
+        <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+        <link rel="icon" type="image/svg+xml" href="/icon.svg" sizes="any" />
+        <link rel="apple-touch-icon" href="/logo-large.svg" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta name="apple-mobile-web-app-title" content="NEPSE.io" />
+        <meta name="application-name" content="NEPSE.io" />
+        <meta name="description" content="All-in-one Nepal Stock Exchange analytics platform" />
       </head>
       <body className="min-h-screen flex text-primary-theme" suppressHydrationWarning>
         <ToastProvider>

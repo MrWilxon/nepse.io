@@ -235,6 +235,7 @@ export default function BulkIPOPage() {
   };
 
   const saveAccount = async () => {
+    if (!accForm.dp) { showToast("Please select a valid DP from the dropdown", "warning"); return; }
     const r = await safeFetch(`${API_BASE}/accounts`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -252,6 +253,7 @@ export default function BulkIPOPage() {
   };
 
   const verifyAccount = async () => {
+    if (!accForm.dp) { showToast("Please select a valid DP from the dropdown", "warning"); return; }
     const r = await safeFetch(`${API_BASE}/accounts/verify`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -674,9 +676,9 @@ uvicorn bulk-ipo.main:app --reload --port 8000`}
             <label className="block text-xs font-medium text-[var(--text-muted)] mb-1.5">DP (Depository Participant)</label>
             <input
               value={dpOpen ? dpSearch : accForm.dp ? `${capitals.find((c) => c.code === accForm.dp)?.name || ""} (${accForm.dp})` : ""}
-              onChange={(e) => { setDpSearch(e.target.value); setDpOpen(true); setDpIdx(-1); }}
+              onChange={(e) => { setDpSearch(e.target.value); setDpOpen(true); setDpIdx(-1); setAccForm((f) => ({ ...f, dp: "" })); }}
               onFocus={() => { setDpOpen(true); setDpSearch(""); }}
-              placeholder="Search DP code or name..."
+              placeholder="Search DP code or name (select from dropdown)..."
               className="w-full px-3 py-2 rounded-lg bg-[var(--bg-hover)] border border-[var(--border-primary)] text-[var(--text-primary)] text-sm outline-none focus:border-[var(--accent)]"
             />
             {dpOpen && filteredDP.length > 0 && (

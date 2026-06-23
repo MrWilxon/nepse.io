@@ -16,6 +16,19 @@ import {
   Minus,
   Search,
   Building2,
+  Zap,
+  Activity,
+  Users,
+  Bell,
+  Clock,
+  Gift,
+  ArrowUpRight,
+  ArrowDownRight,
+  Target,
+  Wallet,
+  BookOpen,
+  LineChart,
+  BarChart3,
 } from "lucide-react";
 import { safeFetch, API_BASE } from "@/lib/api";
 import type { CompanySummary } from "@/lib/api";
@@ -28,22 +41,26 @@ export interface DashboardWidget {
 }
 
 const DEFAULT_WIDGETS: DashboardWidget[] = [
-  { id: "overview", label: "Market Overview", enabled: true, order: 0 },
-  { id: "breadth", label: "Market Breadth", enabled: true, order: 1 },
-  { id: "sectors", label: "Sector Performance", enabled: true, order: 2 },
-  { id: "activity", label: "Recent Activity", enabled: true, order: 3 },
-  { id: "hot", label: "Hot Stocks", enabled: true, order: 4 },
-  { id: "watchlist", label: "Watchlist Summary", enabled: false, order: 5 },
-  { id: "calendar", label: "Earnings Calendar", enabled: false, order: 6 },
-  { id: "ipo", label: "Upcoming IPOs", enabled: false, order: 7 },
-  { id: "companies", label: "Company List", enabled: true, order: 8 },
+  { id: "snapshot", label: "Market Snapshot", enabled: true, order: 0 },
+  { id: "quick-actions", label: "Quick Actions", enabled: true, order: 1 },
+  { id: "breadth", label: "Market Breadth", enabled: true, order: 2 },
+  { id: "sectors", label: "Sector Heatmap", enabled: true, order: 3 },
+  { id: "hot", label: "Top Movers", enabled: true, order: 4 },
+  { id: "events", label: "Upcoming Events", enabled: true, order: 5 },
+  { id: "watchlist", label: "Watchlist", enabled: true, order: 6 },
+  { id: "brokers-snapshot", label: "Top Brokers", enabled: true, order: 7 },
+  { id: "news", label: "Market News", enabled: true, order: 8 },
+  { id: "holidays", label: "Holiday Calendar", enabled: true, order: 9 },
+  { id: "rotation", label: "Sector Rotation", enabled: true, order: 10 },
+  { id: "floor-trades", label: "Recent Floor Trades", enabled: true, order: 11 },
+  { id: "companies", label: "Company Directory", enabled: true, order: 12 },
 ];
 
 export function useDashboardWidgets() {
   const [widgets, setWidgets] = useState<DashboardWidget[]>(DEFAULT_WIDGETS);
 
   useEffect(() => {
-    const saved = localStorage.getItem("nepse_dashboard_widgets");
+    const saved = localStorage.getItem("nepse_dashboard_widgets_v2");
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
@@ -60,7 +77,7 @@ export function useDashboardWidgets() {
 
   const save = (next: DashboardWidget[]) => {
     setWidgets(next);
-    localStorage.setItem("nepse_dashboard_widgets", JSON.stringify(next));
+    localStorage.setItem("nepse_dashboard_widgets_v2", JSON.stringify(next));
   };
 
   const toggleWidget = (id: string) =>
@@ -89,46 +106,99 @@ export function WidgetSettings({
   toggleWidget: (id: string) => void;
   moveWidget: (id: string, dir: -1 | 1) => void;
 }) {
+  const sections = [
+    { label: "Market Overview", ids: ["snapshot", "quick-actions"] },
+    { label: "Charts & Analysis", ids: ["breadth", "sectors", "rotation"] },
+    { label: "Stocks & Movers", ids: ["hot", "watchlist", "companies"] },
+    { label: "Events & News", ids: ["events", "news", "holidays"] },
+    { label: "Brokers & Trading", ids: ["brokers-snapshot", "floor-trades"] },
+  ];
+
   return (
-    <div className="card-3d p-4 space-y-2">
-      <div className="flex items-center gap-2 mb-3">
+    <div className="card-3d p-4">
+      <div className="flex items-center gap-2 mb-4">
         <Settings className="h-3.5 w-3.5 text-accent-theme" />
         <h3 className="text-xs font-bold text-primary-theme uppercase tracking-wider">
-          Dashboard Widgets
+          Customize Dashboard
         </h3>
       </div>
-      {[...widgets]
-        .sort((a, b) => a.order - b.order)
-        .map((w, i) => (
-          <div
-            key={w.id}
-            className="flex items-center gap-2 py-1.5 px-2 rounded-lg hover:bg-hover-theme group"
-          >
-            <GripVertical className="h-3.5 w-3.5 text-muted-theme opacity-0 group-hover:opacity-100 transition-opacity" />
-            <button
-              onClick={() => moveWidget(w.id, -1)}
-              className="text-[10px] text-muted-theme hover:text-primary-theme disabled:opacity-30"
-              disabled={i === 0}
-            >
-              ▲
-            </button>
-            <button
-              onClick={() => moveWidget(w.id, 1)}
-              className="text-[10px] text-muted-theme hover:text-primary-theme disabled:opacity-30"
-              disabled={i === widgets.length - 1}
-            >
-              ▼
-            </button>
-            <span className="flex-1 text-xs text-body-theme">{w.label}</span>
-            <button onClick={() => toggleWidget(w.id)}>
-              {w.enabled ? (
-                <Eye className="h-3.5 w-3.5 text-accent-theme" />
-              ) : (
-                <EyeOff className="h-3.5 w-3.5 text-muted-theme" />
-              )}
-            </button>
+      <div className="space-y-4">
+        {sections.map((section) => (
+          <div key={section.label}>
+            <div className="text-[10px] font-semibold text-muted-theme uppercase tracking-wider mb-2 px-1">
+              {section.label}
+            </div>
+            <div className="space-y-1">
+              {section.ids
+                .map((id) => widgets.find((w) => w.id === id))
+                .filter(Boolean)
+                .map((w) => {
+                  const idx = widgets
+                    .sort((a, b) => a.order - b.order)
+                    .findIndex((x) => x.id === w!.id);
+                  return (
+                    <div
+                      key={w!.id}
+                      className="flex items-center gap-2 py-1.5 px-2 rounded-lg hover:bg-hover-theme group"
+                    >
+                      <GripVertical className="h-3.5 w-3.5 text-muted-theme opacity-0 group-hover:opacity-100 transition-opacity" />
+                      <button
+                        onClick={() => moveWidget(w!.id, -1)}
+                        className="text-[10px] text-muted-theme hover:text-primary-theme disabled:opacity-30"
+                        disabled={idx === 0}
+                      >
+                        ▲
+                      </button>
+                      <button
+                        onClick={() => moveWidget(w!.id, 1)}
+                        className="text-[10px] text-muted-theme hover:text-primary-theme disabled:opacity-30"
+                        disabled={idx === widgets.length - 1}
+                      >
+                        ▼
+                      </button>
+                      <span className="flex-1 text-xs text-body-theme">{w!.label}</span>
+                      <button onClick={() => toggleWidget(w!.id)}>
+                        {w!.enabled ? (
+                          <Eye className="h-3.5 w-3.5 text-accent-theme" />
+                        ) : (
+                          <EyeOff className="h-3.5 w-3.5 text-muted-theme" />
+                        )}
+                      </button>
+                    </div>
+                  );
+                })}
+            </div>
           </div>
         ))}
+      </div>
+    </div>
+  );
+}
+
+export function QuickActionsWidget() {
+  const actions = [
+    { href: "/screener", label: "Stock Screener", icon: Search, color: "text-blue-400", bg: "bg-blue-400/10" },
+    { href: "/brokers", label: "Top Brokers", icon: Users, color: "text-purple-400", bg: "bg-purple-400/10" },
+    { href: "/portfolio", label: "Portfolio", icon: Wallet, color: "text-green-400", bg: "bg-green-400/10" },
+    { href: "/paper-trading", label: "Paper Trading", icon: Target, color: "text-orange-400", bg: "bg-orange-400/10" },
+    { href: "/dividend-calendar", label: "Dividends", icon: Gift, color: "text-pink-400", bg: "bg-pink-400/10" },
+    { href: "/watchlist", label: "Watchlist", icon: Star, color: "text-amber-400", bg: "bg-amber-400/10" },
+  ];
+
+  return (
+    <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
+      {actions.map((a) => (
+        <Link
+          key={a.href}
+          href={a.href}
+          className="flex flex-col items-center gap-2 p-4 rounded-xl bg-input-theme border border-theme hover:bg-hover-theme hover:border-accent-theme/30 transition-all group"
+        >
+          <div className={`p-2.5 rounded-xl ${a.bg} group-hover:scale-110 transition-transform`}>
+            <a.icon className={`h-5 w-5 ${a.color}`} />
+          </div>
+          <span className="text-[11px] font-medium text-body-theme text-center leading-tight">{a.label}</span>
+        </Link>
+      ))}
     </div>
   );
 }
@@ -140,11 +210,7 @@ export function WatchlistSummaryWidget() {
   useEffect(() => {
     const raw = localStorage.getItem("nepse_watchlist");
     if (raw) {
-      try {
-        setWatched(JSON.parse(raw));
-      } catch {
-        /* ignore */
-      }
+      try { setWatched(JSON.parse(raw)); } catch { /* ignore */ }
     }
   }, []);
 
@@ -165,41 +231,48 @@ export function WatchlistSummaryWidget() {
       <div className="p-6 text-center">
         <Star className="h-8 w-8 text-muted-theme mx-auto mb-2" />
         <p className="text-sm text-muted-theme">No stocks in watchlist</p>
-        <p className="text-xs text-muted-theme mt-1">
-          Click the star icon on any stock to add it
-        </p>
+        <p className="text-xs text-muted-theme mt-1">Click the star on any stock to add</p>
       </div>
     );
   }
 
   return (
-    <div className="p-4">
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-        {watchedCompanies.slice(0, 9).map((c) => (
-          <Link
-            key={c.symbol}
-            href={`/company/${c.symbol}`}
-            className="flex items-center justify-between p-3 rounded-lg bg-input-theme border border-theme hover:bg-hover-theme transition-colors"
-          >
-            <div>
-              <div className="text-sm font-bold text-primary-theme">{c.symbol}</div>
-              <div className="text-[10px] text-muted-theme">{c.category}</div>
-            </div>
-            <div className="text-right">
-              <div className="font-mono text-sm text-primary-theme">
-                {c.latestClose !== null ? `Rs ${c.latestClose.toLocaleString()}` : "-"}
-              </div>
-            </div>
-          </Link>
-        ))}
-      </div>
-      {watched.length > 9 && (
-        <p className="text-xs text-muted-theme text-center mt-3">
-          +{watched.length - 9} more in watchlist
-        </p>
+    <div className="p-3 space-y-1.5">
+      {watchedCompanies.slice(0, 6).map((c) => (
+        <Link
+          key={c.symbol}
+          href={`/company/${c.symbol}`}
+          className="flex items-center justify-between p-2.5 rounded-lg bg-input-theme border border-theme hover:bg-hover-theme transition-colors"
+        >
+          <div className="text-sm font-bold text-primary-theme">{c.symbol}</div>
+          <div className="font-mono text-sm text-primary-theme">
+            {c.latestClose !== null ? `Rs ${c.latestClose.toLocaleString()}` : "-"}
+          </div>
+        </Link>
+      ))}
+      {watched.length > 6 && (
+        <Link href="/watchlist" className="block text-center text-xs text-accent-theme hover:underline pt-1">
+          +{watched.length - 6} more
+        </Link>
       )}
     </div>
   );
+}
+
+interface DividendEntry {
+  symbol: string;
+  type: string;
+  amount: number;
+  exDate: string;
+  dividendYield: number;
+}
+
+interface IPOEntry {
+  name: string;
+  symbol?: string;
+  priceRange: string;
+  openDate: string;
+  closeDate: string;
 }
 
 interface EarningsEntry {
@@ -209,111 +282,423 @@ interface EarningsEntry {
   amount?: number;
 }
 
-export function EarningsCalendarWidget() {
-  const [entries, setEntries] = useState<EarningsEntry[]>([]);
+export function EventsWidget() {
+  const [activeTab, setActiveTab] = useState<"earnings" | "ipos" | "dividends">("dividends");
+  const [dividends, setDividends] = useState<DividendEntry[]>([]);
+  const [ipos, setIpos] = useState<IPOEntry[]>([]);
+  const [earnings, setEarnings] = useState<EarningsEntry[]>([]);
 
   useEffect(() => {
+    safeFetch<any>(`${API_BASE}/api/dividend-calendar?upcoming=true`, { calendar: [] })
+      .then((d) => setDividends(Array.isArray(d?.calendar) ? d.calendar.slice(0, 6) : []))
+      .catch(() => {});
+    safeFetch<IPOEntry[]>(`${API_BASE}/api/ipo`, [])
+      .then((d) => setIpos(Array.isArray(d) ? d.slice(0, 6) : []))
+      .catch(() => {});
     safeFetch<EarningsEntry[]>(`${API_BASE}/api/earnings-calendar`, [])
-      .then((data) => setEntries(Array.isArray(data) ? data.slice(0, 8) : []))
+      .then((d) => setEarnings(Array.isArray(d) ? d.slice(0, 6) : []))
       .catch(() => {});
   }, []);
 
-  if (entries.length === 0) {
-    return (
-      <div className="p-6 text-center">
-        <Calendar className="h-8 w-8 text-muted-theme mx-auto mb-2" />
-        <p className="text-sm text-muted-theme">No upcoming earnings</p>
-      </div>
-    );
-  }
+  const tabs = [
+    { id: "dividends" as const, label: "Dividends", count: dividends.length },
+    { id: "ipos" as const, label: "IPOs", count: ipos.length },
+    { id: "earnings" as const, label: "Earnings", count: earnings.length },
+  ];
 
   return (
-    <div className="p-4">
-      <div className="space-y-2">
-        {entries.map((e, i) => (
-          <div
-            key={`${e.symbol}-${i}`}
-            className="flex items-center justify-between p-3 rounded-lg bg-input-theme border border-theme"
+    <div>
+      <div className="flex gap-1 px-4 pt-3">
+        {tabs.map((t) => (
+          <button
+            key={t.id}
+            onClick={() => setActiveTab(t.id)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+              activeTab === t.id
+                ? "bg-accent-theme text-primary-theme"
+                : "text-muted-theme hover:text-primary-theme hover:bg-hover-theme"
+            }`}
           >
-            <div className="flex items-center gap-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent-theme/10">
-                <Calendar className="h-4 w-4 text-accent-theme" />
-              </div>
-              <div>
-                <div className="text-sm font-bold text-primary-theme">{e.symbol}</div>
-                <div className="text-[10px] text-muted-theme">{e.event}</div>
-              </div>
-            </div>
-            <div className="text-right">
-              <div className="text-xs font-medium text-primary-theme">{e.date}</div>
-              {e.amount !== undefined && (
-                <div className="text-[10px] text-accent-theme font-mono">
-                  Rs {e.amount.toLocaleString()}
-                </div>
-              )}
-            </div>
-          </div>
+            {t.label}
+            {t.count > 0 && (
+              <span className="ml-1.5 text-[10px] opacity-70">{t.count}</span>
+            )}
+          </button>
         ))}
+      </div>
+      <div className="p-3 space-y-1.5">
+        {activeTab === "dividends" && (
+          <>
+            {dividends.length === 0 && (
+              <div className="text-center py-4 text-xs text-muted-theme">No upcoming dividends</div>
+            )}
+            {dividends.map((d, i) => (
+              <div key={`${d.symbol}-${i}`} className="flex items-center justify-between p-2.5 rounded-lg bg-input-theme border border-theme">
+                <div className="flex items-center gap-2.5">
+                  <div className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                    d.type === "cash" ? "bg-green-500/10 text-green-400" :
+                    d.type === "bonus" ? "bg-blue-500/10 text-blue-400" :
+                    "bg-purple-500/10 text-purple-400"
+                  }`}>
+                    {d.type.toUpperCase()}
+                  </div>
+                  <div>
+                    <div className="text-xs font-bold text-primary-theme">{d.symbol}</div>
+                    <div className="text-[10px] text-muted-theme">Yield: {d.dividendYield}%</div>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-xs font-mono text-accent-theme">Rs {d.amount}</div>
+                  <div className="text-[10px] text-muted-theme">{d.exDate}</div>
+                </div>
+              </div>
+            ))}
+          </>
+        )}
+        {activeTab === "ipos" && (
+          <>
+            {ipos.length === 0 && (
+              <div className="text-center py-4 text-xs text-muted-theme">No upcoming IPOs</div>
+            )}
+            {ipos.map((ipo, i) => (
+              <div key={ipo.name + i} className="flex items-center justify-between p-2.5 rounded-lg bg-input-theme border border-theme">
+                <div>
+                  <div className="text-xs font-bold text-primary-theme">{ipo.name}</div>
+                  <div className="text-[10px] text-muted-theme">{ipo.symbol || "New listing"}</div>
+                </div>
+                <div className="text-right">
+                  <div className="text-xs font-mono text-primary-theme">{ipo.priceRange}</div>
+                  <div className="text-[10px] text-muted-theme">{ipo.openDate}</div>
+                </div>
+              </div>
+            ))}
+          </>
+        )}
+        {activeTab === "earnings" && (
+          <>
+            {earnings.length === 0 && (
+              <div className="text-center py-4 text-xs text-muted-theme">No upcoming earnings</div>
+            )}
+            {earnings.map((e, i) => (
+              <div key={`${e.symbol}-${i}`} className="flex items-center justify-between p-2.5 rounded-lg bg-input-theme border border-theme">
+                <div>
+                  <div className="text-xs font-bold text-primary-theme">{e.symbol}</div>
+                  <div className="text-[10px] text-muted-theme">{e.event}</div>
+                </div>
+                <div className="text-right">
+                  <div className="text-xs text-primary-theme">{e.date}</div>
+                  {e.amount !== undefined && (
+                    <div className="text-[10px] text-accent-theme font-mono">Rs {e.amount.toLocaleString()}</div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </>
+        )}
       </div>
     </div>
   );
 }
 
-interface IPOEntry {
-  name: string;
-  symbol?: string;
-  priceRange: string;
-  openDate: string;
-  closeDate: string;
-  status: string;
+interface BrokerSnapshot {
+  brokerNo: number;
+  turnover: number;
+  buyAmt: number;
+  sellAmt: number;
+  netDirection: string;
 }
 
-export function UpcomingIPOWidget() {
-  const [ipos, setIpos] = useState<IPOEntry[]>([]);
+export function TopBrokersWidget() {
+  const [brokers, setBrokers] = useState<BrokerSnapshot[]>([]);
 
   useEffect(() => {
-    safeFetch<IPOEntry[]>(`${API_BASE}/api/ipo`, [])
-      .then((data) => setIpos(Array.isArray(data) ? data.slice(0, 6) : []))
+    safeFetch<any>(`${API_BASE}/api/brokers`, { brokers: [] })
+      .then((d) => {
+        const list = Array.isArray(d?.brokers) ? d.brokers : Array.isArray(d) ? d : [];
+        setBrokers(list.slice(0, 5));
+      })
       .catch(() => {});
   }, []);
 
-  if (ipos.length === 0) {
+  if (brokers.length === 0) {
     return (
       <div className="p-6 text-center">
-        <Building2 className="h-8 w-8 text-muted-theme mx-auto mb-2" />
-        <p className="text-sm text-muted-theme">No upcoming IPOs</p>
+        <Users className="h-8 w-8 text-muted-theme mx-auto mb-2" />
+        <p className="text-sm text-muted-theme">No broker data</p>
       </div>
     );
   }
 
   return (
-    <div className="p-4">
-      <div className="space-y-2">
-        {ipos.map((ipo, i) => (
-          <div
-            key={ipo.name + i}
-            className="flex items-center justify-between p-3 rounded-lg bg-input-theme border border-theme"
-          >
-            <div className="flex items-center gap-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent-theme/10">
-                <Building2 className="h-4 w-4 text-accent-theme" />
-              </div>
-              <div>
-                <div className="text-sm font-bold text-primary-theme">
-                  {ipo.name}
-                </div>
-                <div className="text-[10px] text-muted-theme">
-                  {ipo.symbol || "New listing"}
-                </div>
-              </div>
+    <div className="p-3 space-y-1.5">
+      {brokers.map((b) => (
+        <Link
+          key={b.brokerNo}
+          href={`/brokers`}
+          className="flex items-center justify-between p-2.5 rounded-lg bg-input-theme border border-theme hover:bg-hover-theme transition-colors"
+        >
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-accent-theme/10 text-[10px] font-bold text-accent-theme">
+              {b.brokerNo}
             </div>
-            <div className="text-right">
-              <div className="text-xs font-mono text-primary-theme">{ipo.priceRange}</div>
-              <div className="text-[10px] text-muted-theme">{ipo.openDate} – {ipo.closeDate}</div>
+            <div>
+              <div className="text-xs font-bold text-primary-theme">Broker {b.brokerNo}</div>
+              <div className={`text-[10px] font-medium ${
+                b.netDirection === "net_buy" ? "text-green-400" : b.netDirection === "net_sell" ? "text-red-400" : "text-muted-theme"
+              }`}>
+                {b.netDirection === "net_buy" ? "Net Buyer" : b.netDirection === "net_sell" ? "Net Seller" : "Neutral"}
+              </div>
             </div>
           </div>
-        ))}
+          <div className="text-right">
+            <div className="text-xs font-mono text-primary-theme">Rs {(b.turnover / 1_000_000).toFixed(0)}M</div>
+          </div>
+        </Link>
+      ))}
+      <Link href="/brokers" className="block text-center text-xs text-accent-theme hover:underline pt-1">
+        View all brokers →
+      </Link>
+    </div>
+  );
+}
+
+interface Announcement {
+  id: string;
+  title: string;
+  date: string;
+  type: string;
+  symbol?: string;
+}
+
+export function MarketNewsWidget() {
+  const [items, setItems] = useState<Announcement[]>([]);
+
+  useEffect(() => {
+    safeFetch<any>(`${API_BASE}/api/announcements?limit=6`, { announcements: [] })
+      .then((d) => setItems(Array.isArray(d?.announcements) ? d.announcements.slice(0, 5) : []))
+      .catch(() => {});
+  }, []);
+
+  if (items.length === 0) {
+    return (
+      <div className="p-6 text-center">
+        <Bell className="h-8 w-8 text-muted-theme mx-auto mb-2" />
+        <p className="text-sm text-muted-theme">No recent news</p>
       </div>
+    );
+  }
+
+  return (
+    <div className="p-3 space-y-1.5">
+      {items.map((item, i) => (
+        <div
+          key={item.id || i}
+          className="p-2.5 rounded-lg bg-input-theme border border-theme"
+        >
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <div className="text-xs font-medium text-primary-theme line-clamp-2">{item.title}</div>
+              {item.symbol && (
+                <span className="text-[10px] text-accent-theme font-medium">{item.symbol}</span>
+              )}
+            </div>
+            <span className="text-[10px] text-muted-theme whitespace-nowrap">{item.date}</span>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+interface Holiday {
+  title: string;
+  date: string;
+  day?: string;
+}
+
+export function HolidayCalendarWidget() {
+  const [holidays, setHolidays] = useState<Holiday[]>([]);
+
+  useEffect(() => {
+    safeFetch<any>(`${API_BASE}/api/holidays`, { upcoming: [] })
+      .then((d) => setHolidays(Array.isArray(d?.upcoming) ? d.upcoming.slice(0, 3) : []))
+      .catch(() => {});
+  }, []);
+
+  const getNextHoliday = () => {
+    if (holidays.length === 0) return null;
+    const now = new Date();
+    const todayStr = now.toISOString().split("T")[0];
+    const next = holidays.find((h) => h.date >= todayStr);
+    if (!next) return null;
+    const holidayDate = new Date(next.date);
+    const diffMs = holidayDate.getTime() - now.getTime();
+    const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+    return { ...next, daysUntil: diffDays };
+  };
+
+  const next = getNextHoliday();
+
+  return (
+    <div className="p-3 space-y-3">
+      {next && (
+        <div className="p-3 rounded-xl bg-accent-theme/5 border border-accent-theme/20">
+          <div className="text-[10px] text-accent-theme font-semibold uppercase tracking-wider mb-1">Next Holiday</div>
+          <div className="text-sm font-bold text-primary-theme">{next.title}</div>
+          <div className="flex items-center justify-between mt-1">
+            <span className="text-xs text-muted-theme">{next.date} {next.day && `(${next.day})`}</span>
+            <span className="text-xs font-bold text-accent-theme">{next.daysUntil}d away</span>
+          </div>
+        </div>
+      )}
+      {holidays.length > 1 && (
+        <div className="space-y-1.5">
+          {holidays.slice(1).map((h, i) => (
+            <div key={i} className="flex items-center justify-between p-2 rounded-lg bg-input-theme border border-theme">
+              <div className="text-xs text-primary-theme">{h.title}</div>
+              <div className="text-[10px] text-muted-theme">{h.date}</div>
+            </div>
+          ))}
+        </div>
+      )}
+      {holidays.length === 0 && (
+        <div className="text-center py-4 text-xs text-muted-theme">No holidays data</div>
+      )}
+    </div>
+  );
+}
+
+interface RotationSector {
+  sector: string;
+  avgReturn: number;
+  momentum: string;
+  rank: number;
+  companyCount: number;
+}
+
+export function SectorRotationWidget() {
+  const [data, setData] = useState<RotationSector[]>([]);
+
+  useEffect(() => {
+    safeFetch<any>(`${API_BASE}/api/sectors/rotation?days=7`, { sectors: [] })
+      .then((d) => setData(Array.isArray(d?.sectors) ? d.sectors.slice(0, 10) : []))
+      .catch(() => {});
+  }, []);
+
+  if (data.length === 0) {
+    return (
+      <div className="p-6 text-center">
+        <Activity className="h-8 w-8 text-muted-theme mx-auto mb-2" />
+        <p className="text-sm text-muted-theme">No rotation data</p>
+      </div>
+    );
+  }
+
+  const mid = Math.ceil(data.length / 2);
+  const leading = data.slice(0, mid);
+  const lagging = data.slice(mid);
+
+  return (
+    <div className="p-4">
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <div className="flex items-center gap-1.5 mb-3">
+            <TrendingUp className="h-3.5 w-3.5 text-green-400" />
+            <span className="text-[10px] font-bold text-green-400 uppercase tracking-wider">Leading</span>
+          </div>
+          <div className="space-y-1.5">
+            {leading.map((s) => (
+              <div key={s.sector} className="flex items-center justify-between p-2 rounded-lg bg-green-500/5 border border-green-500/10">
+                <div>
+                  <div className="text-xs font-medium text-primary-theme truncate">{s.sector}</div>
+                  <div className="text-[10px] text-muted-theme">{s.companyCount} stocks</div>
+                </div>
+                <span className="text-xs font-bold text-green-400 font-mono">
+                  +{s.avgReturn.toFixed(1)}%
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div>
+          <div className="flex items-center gap-1.5 mb-3">
+            <TrendingDown className="h-3.5 w-3.5 text-red-400" />
+            <span className="text-[10px] font-bold text-red-400 uppercase tracking-wider">Lagging</span>
+          </div>
+          <div className="space-y-1.5">
+            {lagging.map((s) => (
+              <div key={s.sector} className="flex items-center justify-between p-2 rounded-lg bg-red-500/5 border border-red-500/10">
+                <div>
+                  <div className="text-xs font-medium text-primary-theme truncate">{s.sector}</div>
+                  <div className="text-[10px] text-muted-theme">{s.companyCount} stocks</div>
+                </div>
+                <span className={`text-xs font-bold font-mono ${s.avgReturn >= 0 ? "text-green-400" : "text-red-400"}`}>
+                  {s.avgReturn >= 0 ? "+" : ""}{s.avgReturn.toFixed(1)}%
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+interface FloorTrade {
+  sn: string;
+  contractNo: string;
+  symbol: string;
+  quantity: number;
+  rate: number;
+  amount: number;
+}
+
+export function FloorTradesWidget() {
+  const [trades, setTrades] = useState<FloorTrade[]>([]);
+
+  useEffect(() => {
+    safeFetch<any>(`${API_BASE}/api/floorsheet?limit=8`, { records: [] })
+      .then((d) => setTrades(Array.isArray(d?.records) ? d.records.slice(0, 8) : []))
+      .catch(() => {});
+  }, []);
+
+  if (trades.length === 0) {
+    return (
+      <div className="p-6 text-center">
+        <BarChart3 className="h-8 w-8 text-muted-theme mx-auto mb-2" />
+        <p className="text-sm text-muted-theme">No floor trades available</p>
+        <p className="text-[10px] text-muted-theme mt-1">Data updates during market hours</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-3">
+      <div className="overflow-hidden rounded-lg border border-theme">
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="table-header">
+              <th className="px-2.5 py-2 text-left">Symbol</th>
+              <th className="px-2.5 py-2 text-right">Qty</th>
+              <th className="px-2.5 py-2 text-right">Rate</th>
+              <th className="px-2.5 py-2 text-right">Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            {trades.map((t, i) => (
+              <tr key={t.contractNo || i} className="table-row">
+                <td className="px-2.5 py-2 font-semibold text-primary-theme">{t.symbol}</td>
+                <td className="px-2.5 py-2 text-right font-mono text-body-theme">{t.quantity?.toLocaleString()}</td>
+                <td className="px-2.5 py-2 text-right font-mono text-body-theme">Rs {t.rate?.toLocaleString()}</td>
+                <td className="px-2.5 py-2 text-right font-mono text-body-theme">Rs {(t.amount / 1_000_000).toFixed(1)}M</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <Link href="/floorsheet" className="block text-center text-xs text-accent-theme hover:underline mt-2">
+        View full floor sheet →
+      </Link>
     </div>
   );
 }
@@ -330,19 +715,13 @@ export function CompanyListWidget() {
   useEffect(() => {
     const raw = localStorage.getItem("nepse_watchlist");
     if (raw) {
-      try {
-        setWatched(JSON.parse(raw));
-      } catch {
-        /* ignore */
-      }
+      try { setWatched(JSON.parse(raw)); } catch { /* ignore */ }
     }
   }, []);
 
   const toggleWatch = (symbol: string) => {
     setWatched((prev) => {
-      const next = prev.includes(symbol)
-        ? prev.filter((s) => s !== symbol)
-        : [...prev, symbol];
+      const next = prev.includes(symbol) ? prev.filter((s) => s !== symbol) : [...prev, symbol];
       localStorage.setItem("nepse_watchlist", JSON.stringify(next));
       return next;
     });
@@ -360,32 +739,23 @@ export function CompanyListWidget() {
   );
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / COMPANY_PAGE_SIZE));
-  const paginated = filtered.slice(
-    (page - 1) * COMPANY_PAGE_SIZE,
-    page * COMPANY_PAGE_SIZE
-  );
+  const paginated = filtered.slice((page - 1) * COMPANY_PAGE_SIZE, page * COMPANY_PAGE_SIZE);
 
   return (
     <div className="p-4">
       <div className="flex items-center justify-between mb-4">
-        <p className="text-xs text-muted-theme">
-          {filtered.length} companies
-        </p>
+        <p className="text-xs text-muted-theme">{filtered.length} companies</p>
         <div className="relative">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-theme" />
           <input
             type="text"
             placeholder="Search symbol..."
             value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              setPage(1);
-            }}
+            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
             className="w-48 rounded-lg border border-theme bg-input-theme py-2 pl-9 pr-3 text-sm text-primary-theme outline-none focus:border-[#D4A017] focus:ring-1 focus:ring-[#D4A017]/50 placeholder:text-muted-theme"
           />
         </div>
       </div>
-
       {loading ? (
         <div className="space-y-2">
           {Array.from({ length: 5 }).map((_, i) => (
@@ -414,51 +784,32 @@ export function CompanyListWidget() {
                   >
                     <td className="px-3 py-2.5">
                       <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          toggleWatch(c.symbol);
-                        }}
+                        onClick={(e) => { e.stopPropagation(); toggleWatch(c.symbol); }}
                         className="text-muted-theme hover:text-[#f59e0b] transition-colors"
                       >
-                        <Star
-                          className={`h-4 w-4 ${
-                            watched.includes(c.symbol)
-                              ? "fill-[#f59e0b] text-[#f59e0b]"
-                              : ""
-                          }`}
-                        />
+                        <Star className={`h-4 w-4 ${watched.includes(c.symbol) ? "fill-[#f59e0b] text-[#f59e0b]" : ""}`} />
                       </button>
                     </td>
-                    <td className="px-3 py-2.5 font-semibold text-primary-theme">
-                      {c.symbol}
-                    </td>
+                    <td className="px-3 py-2.5 font-semibold text-primary-theme">{c.symbol}</td>
                     <td className="px-3 py-2.5 text-body-theme">{c.category}</td>
                     <td className="px-3 py-2.5 text-right font-mono text-primary-theme">
-                      {c.latestClose !== null
-                        ? `Rs ${c.latestClose.toLocaleString()}`
-                        : "-"}
+                      {c.latestClose !== null ? `Rs ${c.latestClose.toLocaleString()}` : "-"}
                     </td>
-                    <td className="px-3 py-2.5 text-right text-muted-theme">
-                      {c.latestDate || "-"}
-                    </td>
+                    <td className="px-3 py-2.5 text-right text-muted-theme">{c.latestDate || "-"}</td>
                   </tr>
                 ))}
                 {filtered.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="px-4 py-8 text-center text-muted-theme">
-                      No companies found
-                    </td>
+                    <td colSpan={5} className="px-4 py-8 text-center text-muted-theme">No companies found</td>
                   </tr>
                 )}
               </tbody>
             </table>
           </div>
-
           {totalPages > 1 && (
             <div className="flex items-center justify-between mt-3">
               <p className="text-xs text-muted-theme">
-                {(page - 1) * COMPANY_PAGE_SIZE + 1}–
-                {Math.min(page * COMPANY_PAGE_SIZE, filtered.length)} of {filtered.length}
+                {(page - 1) * COMPANY_PAGE_SIZE + 1}–{Math.min(page * COMPANY_PAGE_SIZE, filtered.length)} of {filtered.length}
               </p>
               <div className="flex items-center gap-1">
                 <button

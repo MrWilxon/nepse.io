@@ -47,3 +47,4 @@ src/config/cookies.py
 
 # Bulk IPO accounts (sensitive)
 bulk-ipo/accounts.csv
+accounts.csv

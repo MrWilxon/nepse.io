@@ -130,6 +130,17 @@ async def delete_account(username: str):
 async def verify_account(account: AccountCreate):
     try:
         acc = _dict_to_account(account.model_dump())
+    except Exception as e:
+        return {"success": False, "message": f"Invalid account data: {e}"}
+    try:
+        _ = acc.client_id
+    except ValueError as e:
+        valid_codes = ", ".join(c["code"] for c in CAPITALS[:5])
+        return {
+            "success": False,
+            "message": f"{e}. Use a 5-digit DP code from the dropdown (e.g. {valid_codes}, ...)."
+        }
+    try:
         async with MeroShareService(acc) as svc:
             return {"success": True, "message": f"Login successful for {acc.user}"}
     except Exception as e:

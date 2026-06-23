@@ -18,11 +18,20 @@ class MeroShareService:
     MAX_RETRIES = 3
     RETRY_BASE_DELAY = 1.5
 
+    BROWSER_HEADERS = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "Accept": "application/json, text/plain, */*",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Origin": "https://meroshare.cdsc.com.np",
+        "Referer": "https://meroshare.cdsc.com.np/",
+        "Content-Type": "application/json",
+    }
+
     def __init__(self, account: Account):
         self.account = account
         self._authorization: Optional[str] = None
         self._branch_info: Optional[dict] = None
-        self._client = httpx.AsyncClient(verify=VERIFY_SSL, timeout=30.0)
+        self._client = httpx.AsyncClient(verify=VERIFY_SSL, timeout=30.0, headers=self.BROWSER_HEADERS)
 
     async def __aenter__(self):
         await self.initialize()

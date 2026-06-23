@@ -34,4 +34,5 @@ app.add_middleware(
 )
 
 app.include_router(router)
-app.mount("/", StaticFiles(directory=str(STATIC_DIR), html=True), name="static")
+if STATIC_DIR.exists():
+    app.mount("/static", StaticFiles(directory=str(STATIC_DIR), html=True), name="static")

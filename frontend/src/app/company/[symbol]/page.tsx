@@ -31,6 +31,7 @@ import {
 import type { IndicatorData, CompanyStats, ChartPattern } from "@/lib/api";
 import { useWatchlist } from "@/lib/watchlist";
 import { exportCSV } from "@/lib/export";
+import { InArticleAd } from "@/components/adsense";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -614,6 +615,11 @@ export default function CompanyPage() {
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
+          </div>
+
+          {/* In-article Ad */}
+          <div className="py-4">
+            <InArticleAd />
           </div>
 
           <div className="rounded-xl border border-[var(--border-primary)] bg-[var(--bg-card)] p-6">

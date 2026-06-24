@@ -53,6 +53,15 @@ export default function PaperTradingPage() {
         </button>
       </div>
 
+      <div className="rounded-lg border border-yellow-500/30 bg-yellow-500/10 p-4 text-xs text-yellow-700 dark:text-yellow-400">
+        <p className="font-semibold mb-1">Disclaimer</p>
+        <ul className="list-disc list-inside space-y-1 text-[var(--text-muted)]">
+          <li>This is a simulated trading environment using virtual money.</li>
+          <li>Past performance does not guarantee future results.</li>
+          <li>Trading involves risk; consult a financial advisor before making real investment decisions.</li>
+        </ul>
+      </div>
+
       {/* Stats Row */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <div className="card-3d p-4">

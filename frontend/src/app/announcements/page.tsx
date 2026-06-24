@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Bell, Calendar, Info, Search, Filter } from "lucide-react";
+import { InFeedAd } from "@/components/adsense";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -134,6 +135,11 @@ export default function AnnouncementsPage() {
                 </button>
               ))}
             </div>
+          </div>
+
+          {/* In-feed Ad */}
+          <div className="py-2">
+            <InFeedAd />
           </div>
 
           {/* Announcements Table */}

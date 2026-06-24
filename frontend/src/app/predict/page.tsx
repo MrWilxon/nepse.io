@@ -182,6 +182,15 @@ export default function PredictPage() {
           <p>Select a company to see AI predictions</p>
         </div>
       )}
+
+      <div className="rounded-lg border border-yellow-500/30 bg-yellow-500/10 p-4 text-xs text-yellow-700 dark:text-yellow-400">
+        <p className="font-semibold mb-1">Disclaimer</p>
+        <ul className="list-disc list-inside space-y-1 text-[var(--text-muted)]">
+          <li>AI predictions are for informational purposes only and should not be considered financial advice.</li>
+          <li>Past performance does not guarantee future results.</li>
+          <li>Trading involves risk; consult a financial advisor before making investment decisions.</li>
+        </ul>
+      </div>
     </div>
   );
 }

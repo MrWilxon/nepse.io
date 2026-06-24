@@ -33,6 +33,7 @@ import type {
 } from "@/lib/api";
 import { safeFetch, API_BASE } from "@/lib/api";
 import { ErrorBoundary } from "@/components/error-boundary";
+import { InArticleAd } from "@/components/adsense";
 import {
   useDashboardWidgets,
   WidgetSettings,
@@ -282,6 +283,11 @@ export default function Home() {
             </div>
           </div>
         )}
+
+        {/* In-article Ad */}
+        <div className="py-4">
+          <InArticleAd />
+        </div>
 
         {/* ═══════════════════════════════════════════════════ */}
         {/* SECTION 13: Company Directory                     */}

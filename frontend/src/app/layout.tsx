@@ -54,6 +54,7 @@ import Breadcrumbs from "@/components/breadcrumbs";
 import KeyboardShortcutsProvider from "@/components/keyboard-shortcuts";
 import MobileNav from "@/components/mobile-nav";
 import { API_BASE } from "@/lib/api";
+import { LeaderboardAd } from "@/components/adsense";
 
 interface MarketStatus {
   status: string;
@@ -435,6 +436,11 @@ function InnerLayout({ children }: { children: React.ReactNode }) {
       <main className="flex-1 flex flex-col min-h-screen overflow-hidden">
         {/* Price ticker */}
         <PriceTicker />
+
+        {/* Leaderboard Ad */}
+        <div className="flex justify-center py-3 border-b border-theme bg-header-theme/50">
+          <LeaderboardAd />
+        </div>
 
         {/* Top header */}
         <header className="flex items-center justify-between px-6 py-4 border-b border-theme bg-header-theme/80 backdrop-blur-sm sticky top-0 z-30">

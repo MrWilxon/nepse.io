@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 declare global {
   interface Window {
@@ -28,17 +28,25 @@ export function AdSense({
   responsive = true,
 }: AdSenseProps) {
   const adRef = useRef<HTMLModElement>(null);
-  const pushed = useRef(false);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    if (pushed.current) return;
-    try {
-      (window.adsbygoogle = window.adsbygoogle || []).push({});
-      pushed.current = true;
-    } catch (e) {
-      console.error("AdSense error:", e);
-    }
+    setMounted(true);
   }, []);
+
+  useEffect(() => {
+    if (!mounted || !adRef.current) return;
+
+    const timer = setTimeout(() => {
+      try {
+        (window.adsbygoogle = window.adsbygoogle || []).push({});
+      } catch (e) {
+        console.error("AdSense push error:", e);
+      }
+    }, 100);
+
+    return () => clearTimeout(timer);
+  }, [mounted]);
 
   const insStyle: React.CSSProperties = {
     display: "block",

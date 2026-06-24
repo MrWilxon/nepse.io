@@ -3434,8 +3434,10 @@ app.get("/api/dividend-calendar", async (req, res) => {
     for (const [symbol, divs] of Object.entries(allDividends)) {
       if (!Array.isArray(divs)) continue;
       for (const d of divs) {
-        if (d.date && d.date >= today) {
-          calendar.push({ symbol, ...d });
+        // Use the most relevant upcoming date for filtering
+        const upcomingDate = d.bookCloseDate || d.distributionDate || d.announcementDate || d.date || "";
+        if (upcomingDate && upcomingDate >= today) {
+          calendar.push({ symbol, ...d, date: upcomingDate });
         }
       }
     }
@@ -3755,7 +3757,9 @@ app.get("/api/brokers", async (req, res) => {
         data = brokerData;
       }
     } catch (e) { /* fallback */ }
-    if (!data) data = generateBrokerData();
+    if (!data || !data.brokers || data.brokers.length === 0) {
+      return res.json({ date: "", totalTurnover: 0, totalVolume: 0, totalTransactions: 0, brokers: [], page: 1, pages: 0 });
+    }
     const { sortBy, sortDir, page, limit } = req.query;
     let sorted = [...data.brokers];
     if (sortBy) {

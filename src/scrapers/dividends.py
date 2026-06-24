@@ -1,108 +1,108 @@
-"""Scrape dividend data from ShareSansar."""
+"""Scrape dividend data from ShareSansar DataTable API."""
 import json
+import re
 import sys
-import time
-from bs4 import BeautifulSoup
-from .config import create_session, cache_get, cache_set, safe_float, safe_int, BASE_URL
+import urllib.request
+import urllib.parse
+from .config import cache_get, cache_set, safe_float, BASE_URL, HEADERS
+
+PAGE_SIZE = 50
+
+
+def _fetch_page(start=0):
+    params = {
+        "draw": "1",
+        "start": str(start),
+        "length": str(PAGE_SIZE),
+        "type": "LATEST",
+        "duration": "1Year",
+        "columns[0][data]": "DT_Row_Index",
+        "columns[0][orderable]": "false",
+        "columns[1][data]": "symbol",
+        "columns[2][data]": "companyname",
+        "columns[3][data]": "bonus_share",
+        "columns[4][data]": "cash_dividend",
+        "columns[5][data]": "total_dividend",
+        "columns[6][data]": "announcement_date",
+        "order[0][column]": "6",
+        "order[0][dir]": "desc",
+    }
+    query = urllib.parse.urlencode(params)
+    url = f"{BASE_URL}/proposed-dividend?{query}"
+    req = urllib.request.Request(url, headers={
+        "User-Agent": HEADERS["User-Agent"],
+        "Accept": "application/json",
+        "X-Requested-With": "XMLHttpRequest",
+        "Referer": f"{BASE_URL}/proposed-dividend",
+    })
+    with urllib.request.urlopen(req, timeout=20) as resp:
+        return json.loads(resp.read().decode("utf-8"))
 
 
 def scrape_dividends(symbols=None, force=False):
-    """Scrape dividend history for companies."""
     cache_key = "dividends"
     if not force:
-        cached = cache_get(cache_key, max_age_hours=48)
+        cached = cache_get(cache_key, max_age_hours=24)
         if cached:
             return cached
 
-    session = create_session()
     all_dividends = {}
-
     try:
-        # ShareSansar dividend page
-        url = f"{BASE_URL}/dividend"
-        resp = session.get(url, timeout=20)
-        resp.raise_for_status()
-        soup = BeautifulSoup(resp.text, "lxml")
+        first_page = _fetch_page(0)
+        total = first_page.get("recordsTotal", 0)
+        if total == 0:
+            cache_set(cache_key, all_dividends)
+            return all_dividends
 
-        tables = soup.find_all("table")
-        for table in tables:
-            rows = table.find_all("tr")
-            headers = []
-            for row in rows:
-                cells = row.find_all(["td", "th"])
-                if not headers:
-                    headers = [c.get_text(strip=True).lower() for c in cells]
-                    continue
-                if len(cells) < 3:
-                    continue
+        pages = (total + PAGE_SIZE - 1) // PAGE_SIZE
+        all_items = first_page.get("data", [])
+        for page in range(1, pages):
+            try:
+                page_data = _fetch_page(page * PAGE_SIZE)
+                all_items.extend(page_data.get("data", []))
+            except Exception:
+                break
 
-                entry = {}
-                for i, cell in enumerate(cells):
-                    if i < len(headers):
-                        val = cell.get_text(strip=True)
-                        h = headers[i]
-                        if "symbol" in h or "scrip" in h:
-                            entry["symbol"] = val
-                        elif "year" in h or "fiscal" in h:
-                            entry["year"] = val
-                        elif "cash" in h and ("dividend" in h or "rate" in h):
-                            entry["cashDividend"] = safe_float(val)
-                        elif "bonus" in h:
-                            entry["bonusDividend"] = safe_float(val)
-                        elif "right" in h:
-                            entry["rightsDividend"] = safe_float(val)
-                        elif "total" in h:
-                            entry["totalDividend"] = safe_float(val)
-                        elif "type" in h or "kind" in h:
-                            entry["type"] = val
+        for item in all_items:
+            symbol_html = item.get("symbol", "")
+            symbol = re.sub(r"<[^>]+>", "", symbol_html).strip()
+            if not symbol:
+                continue
+            if symbols and symbol not in symbols:
+                continue
+            if symbol not in all_dividends:
+                all_dividends[symbol] = []
 
-                if entry.get("symbol"):
-                    sym = entry["symbol"]
-                    if symbols and sym not in symbols:
-                        continue
-                    if sym not in all_dividends:
-                        all_dividends[sym] = []
-                    all_dividends[sym].append({
-                        "year": entry.get("year", ""),
-                        "cashDividend": entry.get("cashDividend", 0),
-                        "bonusDividend": entry.get("bonusDividend", 0),
-                        "rightsDividend": entry.get("rightsDividend", 0),
-                        "totalDividend": entry.get("totalDividend", 0),
-                        "type": entry.get("type", "cash"),
-                    })
+            bonus = safe_float(item.get("bonus_share", 0))
+            cash = safe_float(item.get("cash_dividend", 0))
+            total = safe_float(item.get("total_dividend", 0))
 
-        # Also try per-company dividend pages
-        if symbols:
-            for symbol in symbols:
-                if symbol not in all_dividends or not all_dividends[symbol]:
-                    try:
-                        comp_url = f"{BASE_URL}/company/{symbol.lower()}"
-                        resp = session.get(comp_url, timeout=15)
-                        soup = BeautifulSoup(resp.text, "lxml")
+            entry = {
+                "fiscalYear": item.get("year", ""),
+                "cashDividend": cash,
+                "bonusDividend": bonus,
+                "rightsDividend": 0,
+                "totalDividend": total,
+                "announcementDate": item.get("announcement_date", ""),
+                "bookCloseDate": item.get("bookclose_date") or "",
+                "distributionDate": item.get("distribution_date") or "",
+                "bonusListingDate": item.get("bonus_listing_date") or "",
+                "ltp": safe_float(item.get("close")) if item.get("close") else None,
+            }
 
-                        # Look for dividend section
-                        div_section = soup.find("div", id="dividend") or soup.find("section", class_="dividend")
-                        if div_section:
-                            tables = div_section.find_all("table")
-                            for table in tables:
-                                rows = table.find_all("tr")
-                                for row in rows[1:]:  # skip header
-                                    cells = row.find_all("td")
-                                    if len(cells) >= 2:
-                                        all_dividends.setdefault(symbol, []).append({
-                                            "year": cells[0].get_text(strip=True),
-                                            "cashDividend": safe_float(cells[1].get_text(strip=True)) if len(cells) > 1 else 0,
-                                            "bonusDividend": safe_float(cells[2].get_text(strip=True)) if len(cells) > 2 else 0,
-                                            "rightsDividend": safe_float(cells[3].get_text(strip=True)) if len(cells) > 3 else 0,
-                                            "totalDividend": 0,
-                                            "type": "cash",
-                                        })
-                        time.sleep(0.3)
-                    except Exception:
-                        pass
+            status = item.get("status", -1)
+            if status == -1:
+                entry["status"] = "upcoming"
+            elif status == 0:
+                entry["status"] = "open"
+            else:
+                entry["status"] = "closed"
 
+            all_dividends[symbol].append(entry)
     except Exception as e:
-        all_dividends = {"error": str(e)}
+        import traceback
+        print(f"SCRAPER ERROR: {type(e).__name__}: {e}", file=sys.stderr)
+        traceback.print_exc(file=sys.stderr)
 
     cache_set(cache_key, all_dividends)
     return all_dividends

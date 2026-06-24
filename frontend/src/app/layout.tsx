@@ -19,6 +19,7 @@ import KeyboardShortcutsProvider from "@/components/keyboard-shortcuts";
 import MobileNav from "@/components/mobile-nav";
 import Sidebar from "@/components/sidebar";
 import Footer from "@/components/footer";
+import { AdblockDetector } from "@/components/adblock-detector";
 import { API_BASE } from "@/lib/api";
 import { LeaderboardAd } from "@/components/adsense";
 
@@ -61,6 +62,7 @@ function InnerLayout({ children }: { children: React.ReactNode }) {
     <>
       <CommandPalette open={cmdOpen} onClose={() => setCmdOpen(false)} />
       <OnboardingTour />
+      <AdblockDetector />
 
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 

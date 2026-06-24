@@ -1,98 +1,87 @@
-"""Scrape IPO/FPO data from ShareSansar."""
+"""Scrape IPO/FPO data from ShareSansar DataTable API."""
 import json
+import re
 import sys
-import time
-from bs4 import BeautifulSoup
-from .config import create_session, cache_get, cache_set, safe_float, safe_int, BASE_URL
+import urllib.request
+import urllib.parse
+from .config import cache_get, cache_set, safe_float, safe_int, BASE_URL, HEADERS
+
+PAGE_SIZE = 50
+
+
+def _fetch_page(start=0):
+    params = {
+        "draw": "1", "start": str(start), "length": str(PAGE_SIZE),
+        "columns[0][data]": "DT_Row_Index", "columns[0][orderable]": "false",
+        "columns[1][data]": "company.symbol", "columns[1][orderable]": "false",
+        "columns[2][data]": "company.companyname", "columns[2][orderable]": "false",
+        "columns[3][data]": "company.sector.sectorname", "columns[3][orderable]": "false",
+        "columns[4][data]": "ratio_value", "columns[4][orderable]": "false",
+        "columns[5][data]": "issue_open_date", "columns[5][orderable]": "false",
+        "columns[6][data]": "issue_close_date", "columns[6][orderable]": "false",
+    }
+    query = urllib.parse.urlencode(params)
+    url = f"{BASE_URL}/upcoming-issue?{query}"
+    req = urllib.request.Request(url, headers={
+        "User-Agent": HEADERS["User-Agent"],
+        "Accept": "application/json",
+        "X-Requested-With": "XMLHttpRequest",
+        "Referer": f"{BASE_URL}/upcoming-issue",
+    })
+    with urllib.request.urlopen(req, timeout=20) as resp:
+        return json.loads(resp.read().decode("utf-8"))
 
 
 def scrape_ipo(force=False):
-    """Scrape IPO and FPO data."""
     cache_key = "ipo"
     if not force:
         cached = cache_get(cache_key, max_age_hours=24)
         if cached:
             return cached
 
-    session = create_session()
     ipo_data = []
-
     try:
-        # ShareSansar IPO page
-        url = f"{BASE_URL}/ipo-fpo"
-        resp = session.get(url, timeout=20)
-        resp.raise_for_status()
-        soup = BeautifulSoup(resp.text, "lxml")
+        first_page = _fetch_page(0)
+        total = first_page.get("recordsTotal", 0)
+        all_items = first_page.get("data", [])
+        if total > PAGE_SIZE:
+            pages = (total + PAGE_SIZE - 1) // PAGE_SIZE
+            for page in range(1, pages):
+                try:
+                    page_data = _fetch_page(page * PAGE_SIZE)
+                    all_items.extend(page_data.get("data", []))
+                except Exception:
+                    break
 
-        tables = soup.find_all("table")
-        for table in tables:
-            rows = table.find_all("tr")
-            headers = []
-            for row in rows:
-                cells = row.find_all(["td", "th"])
-                if not headers:
-                    headers = [c.get_text(strip=True).lower() for c in cells]
-                    continue
-                if len(cells) < 4:
-                    continue
+        for item in all_items:
+            company = item.get("company", {})
+            symbol = re.sub(r"<[^>]+>", "", company.get("symbol", "")).strip()
+            name = re.sub(r"<[^>]+>", "", company.get("companyname", "")).strip()
+            sector = ""
+            if company.get("sector"):
+                sector = company["sector"].get("sectorname", "")
 
-                entry = {}
-                for i, cell in enumerate(cells):
-                    if i < len(headers):
-                        val = cell.get_text(strip=True)
-                        h = headers[i]
-                        if "symbol" in h or "scrip" in h:
-                            entry["symbol"] = val
-                        elif "name" in h or "company" in h:
-                            entry["name"] = val
-                        elif "sector" in h or "industry" in h:
-                            entry["sector"] = val
-                        elif "issue" in h and ("price" in h or "rate" in h):
-                            entry["issuePrice"] = safe_float(val)
-                        elif "date" in h and ("issue" in h or "open" in h):
-                            entry["issueDate"] = val
-                        elif "status" in h or "result" in h:
-                            entry["status"] = val
-                        elif "lot" in h:
-                            entry["lots"] = safe_int(val)
-                        elif "close" in h or "price" in h:
-                            entry["currentPrice"] = safe_float(val)
-                        elif "change" in h:
-                            entry["change"] = safe_float(val)
+            total_units = safe_int(item.get("total_units", 0))
+            amount = safe_float(item.get("amount", 0))
 
-                if entry.get("symbol"):
-                    entry.setdefault("name", entry["symbol"])
-                    entry.setdefault("sector", "Other")
-                    entry.setdefault("issuePrice", 100)
-                    entry.setdefault("status", "Listed")
-                    entry.setdefault("lots", 0)
-                    entry.setdefault("currentPrice", 0)
-                    entry.setdefault("change", 0)
-                    ipo_data.append(entry)
-
-        # Also scrape upcoming IPOs from separate section
-        upcoming_section = soup.select(".upcoming-ipo, .ipo-upcoming, #upcoming")
-        for section in upcoming_section:
-            rows = section.find_all("tr")
-            for row in rows:
-                cells = row.find_all("td")
-                if len(cells) >= 3:
-                    entry = {
-                        "symbol": cells[0].get_text(strip=True),
-                        "name": cells[1].get_text(strip=True) if len(cells) > 1 else "",
-                        "sector": cells[2].get_text(strip=True) if len(cells) > 2 else "Other",
-                        "issuePrice": safe_float(cells[3].get_text(strip=True)) if len(cells) > 3 else 100,
-                        "issueDate": cells[4].get_text(strip=True) if len(cells) > 4 else "",
-                        "status": "Upcoming",
-                        "lots": 0,
-                        "currentPrice": 100,
-                        "change": 0,
-                    }
-                    if entry["symbol"] and not any(e["symbol"] == entry["symbol"] for e in ipo_data):
-                        ipo_data.append(entry)
-
+            ipo_data.append({
+                "symbol": symbol,
+                "name": name or symbol,
+                "sector": sector or "Other",
+                "type": item.get("displayable_share_type", "IPO"),
+                "issuePrice": amount / total_units if total_units > 0 else 0,
+                "totalUnits": total_units,
+                "amount": amount,
+                "ratio": item.get("ratio_value"),
+                "openDate": item.get("issue_open_date") or "",
+                "closeDate": item.get("issue_close_date") or "",
+                "applicationDate": item.get("application_date") or "",
+                "priceRange": f"Rs {amount / total_units:.2f}" if total_units > 0 else "TBA",
+                "status": "Upcoming",
+                "issueManager": item.get("issue_manager", ""),
+            })
     except Exception as e:
-        ipo_data = [{"error": str(e)}]
+        print(f"SCRAPER ERROR: {type(e).__name__}: {e}", file=sys.stderr)
 
     cache_set(cache_key, ipo_data)
     return ipo_data

@@ -1,103 +1,85 @@
-"""Scrape broker trading data from NEPSE."""
+"""Scrape broker trading data from ShareSansar DataTable API."""
 import json
 import sys
-import time
-from bs4 import BeautifulSoup
-from .config import create_session, cache_get, cache_set, safe_float, safe_int, NEPSE_URL
+import urllib.request
+import urllib.parse
+from datetime import datetime
+from .config import cache_get, cache_set, safe_float, safe_int, BASE_URL, HEADERS
+
+PAGE_SIZE = 50
+
+
+def _fetch_page(start=0):
+    params = {
+        "draw": "1", "start": str(start), "length": str(PAGE_SIZE),
+        "order[0][column]": "5", "order[0][dir]": "desc",
+        "columns[0][data]": "DT_Row_Index", "columns[0][orderable]": "false",
+        "columns[1][data]": "number", "columns[1][orderable]": "true",
+        "columns[2][data]": "name", "columns[2][orderable]": "true",
+        "columns[3][data]": "buyerAmount", "columns[3][orderable]": "true",
+        "columns[4][data]": "sellerAmount", "columns[4][orderable]": "true",
+        "columns[5][data]": "totalAmount", "columns[5][orderable]": "true",
+        "columns[6][data]": "volume", "columns[6][orderable]": "true",
+        "columns[7][data]": "transactions", "columns[7][orderable]": "true",
+    }
+    query = urllib.parse.urlencode(params)
+    url = f"{BASE_URL}/top-brokers?{query}"
+    req = urllib.request.Request(url, headers={
+        "User-Agent": HEADERS["User-Agent"],
+        "Accept": "application/json",
+        "X-Requested-With": "XMLHttpRequest",
+        "Referer": f"{BASE_URL}/top-brokers",
+    })
+    with urllib.request.urlopen(req, timeout=20) as resp:
+        return json.loads(resp.read().decode("utf-8"))
 
 
 def scrape_brokers(force=False):
-    """Scrape broker-wise trading statistics."""
     cache_key = "brokers"
     if not force:
         cached = cache_get(cache_key, max_age_hours=12)
         if cached:
             return cached
 
-    session = create_session()
     brokers = []
-
     try:
-        # NEPSE broker page
-        url = f"{NEPSE_URL}/broker"
-        resp = session.get(url, timeout=20)
-        resp.raise_for_status()
-        soup = BeautifulSoup(resp.text, "lxml")
+        first_page = _fetch_page(0)
+        total = first_page.get("recordsTotal", 0)
+        all_items = first_page.get("data", [])
+        if total > PAGE_SIZE:
+            pages = (total + PAGE_SIZE - 1) // PAGE_SIZE
+            for page in range(1, pages):
+                try:
+                    page_data = _fetch_page(page * PAGE_SIZE)
+                    all_items.extend(page_data.get("data", []))
+                except Exception:
+                    break
 
-        tables = soup.find_all("table")
-        for table in tables:
-            rows = table.find_all("tr")
-            headers = []
-            for row in rows:
-                cells = row.find_all(["td", "th"])
-                if not headers:
-                    headers = [c.get_text(strip=True).lower() for c in cells]
-                    continue
-                if len(cells) < 3:
-                    continue
-
-                broker = {}
-                for i, cell in enumerate(cells):
-                    if i < len(headers):
-                        val = cell.get_text(strip=True)
-                        h = headers[i]
-                        if "broker" in h and ("no" in h or "number" in h or "#" in h):
-                            broker["brokerNo"] = safe_int(val)
-                        elif "name" in h:
-                            broker["name"] = val
-                        elif "buy" in h and ("amount" in h or "turnover" in h):
-                            broker["buyAmount"] = safe_float(val)
-                        elif "sell" in h and ("amount" in h or "turnover" in h):
-                            broker["sellAmount"] = safe_float(val)
-                        elif "total" in h and ("amount" in h or "turnover" in h):
-                            broker["totalAmount"] = safe_float(val)
-                        elif "trans" in h or "trades" in h:
-                            broker["transactions"] = safe_int(val)
-                        elif "volume" in h or "qty" in h:
-                            broker["volume"] = safe_int(val)
-
-                if broker.get("brokerNo") or broker.get("name"):
-                    broker.setdefault("brokerNo", len(brokers) + 1)
-                    broker.setdefault("name", f"Broker {broker['brokerNo']}")
-                    broker.setdefault("buyAmount", 0)
-                    broker.setdefault("sellAmount", 0)
-                    broker.setdefault("totalAmount", 0)
-                    broker.setdefault("transactions", 0)
-                    broker.setdefault("volume", 0)
-                    brokers.append(broker)
-
-        # Try to get broker detail pages
-        for broker in brokers[:10]:  # Limit requests
-            try:
-                detail_url = f"{NEPSE_URL}/broker/{broker['brokerNo']}"
-                resp = session.get(detail_url, timeout=15)
-                if resp.status_code == 200:
-                    soup = BeautifulSoup(resp.text, "lxml")
-                    # Look for trading history
-                    tables = soup.find_all("table")
-                    for table in tables:
-                        rows = table.find_all("tr")
-                        if len(rows) > 2:
-                            history = []
-                            for row in rows[1:]:
-                                cells = row.find_all("td")
-                                if len(cells) >= 3:
-                                    history.append({
-                                        "date": cells[0].get_text(strip=True),
-                                        "buyAmount": safe_float(cells[1].get_text(strip=True)),
-                                        "sellAmount": safe_float(cells[2].get_text(strip=True)) if len(cells) > 2 else 0,
-                                    })
-                            if history:
-                                broker["history"] = history[-30:]
-                time.sleep(0.3)
-            except Exception:
-                pass
-
+        for item in all_items:
+            broker = {
+                "brokerNo": safe_int(item.get("number", 0)),
+                "name": item.get("name", ""),
+                "buyAmount": safe_float(item.get("buyerAmount", 0)),
+                "sellAmount": safe_float(item.get("sellerAmount", 0)),
+                "totalAmount": safe_float(item.get("totalAmount", 0)),
+                "volume": safe_int(item.get("volume", 0)),
+                "transactions": safe_int(item.get("transactions", 0)),
+                "turnover": safe_float(item.get("totalAmount", 0)),
+            }
+            if broker["name"] or broker["brokerNo"]:
+                brokers.append(broker)
     except Exception as e:
-        brokers = [{"error": str(e)}]
+        print(f"SCRAPER ERROR: {type(e).__name__}: {e}", file=sys.stderr)
 
-    cache_set(cache_key, brokers)
-    return brokers
+    result = {
+        "date": datetime.now().strftime("%Y-%m-%d"),
+        "totalTurnover": sum(b["buyAmount"] + b["sellAmount"] for b in brokers),
+        "totalVolume": sum(b["volume"] for b in brokers),
+        "totalTransactions": sum(b["transactions"] for b in brokers),
+        "brokers": brokers,
+    }
+    cache_set(cache_key, result)
+    return result
 
 
 if __name__ == "__main__":

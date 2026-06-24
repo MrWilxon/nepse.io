@@ -50,3 +50,9 @@ bulk-ipo/accounts.csv
 bulk-ipo/*.db
 bulk-ipo/.encryption_key
 accounts.csv
+
+# Test/debug files
+test_*.py
+stderr*.txt
+data/.last_scrape
+data/cache/

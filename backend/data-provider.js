@@ -22,7 +22,9 @@ const scraperStatus = {};
  */
 function runScraper(scraperName, args = [], timeout = SCRAPER_TIMEOUT) {
   return new Promise((resolve) => {
-    const pythonArgs = ["-m", "src.scrapers", scraperName, ...args];
+    // Use standalone script to avoid python -m module issues
+    const scriptPath = path.join(PROJECT_ROOT, "src", "scrapers", "run_scraper.py");
+    const pythonArgs = [scriptPath, scraperName, ...args];
 
     execFile("python", pythonArgs, { cwd: PROJECT_ROOT, timeout, maxBuffer: 10 * 1024 * 1024 }, (err, stdout, stderr) => {
       if (err) {
@@ -124,16 +126,34 @@ async function getIPO(force = false) {
   try {
     const result = await runScraper("ipo");
     if (Array.isArray(result) && result.length > 0 && !result[0]?.error) {
-      writeCache(cacheKey, result);
-      updateStatus(cacheKey, true, result.length);
-      return result;
+      const transformed = result.map(item => ({
+        symbol: item.symbol || "",
+        name: item.name || item.symbol || "",
+        sector: item.sector || "Other",
+        type: item.type || "IPO",
+        issuePrice: item.issuePrice || 0,
+        totalUnits: item.totalUnits || 0,
+        amount: item.amount || 0,
+        ratio: item.ratio,
+        openDate: item.openDate || "",
+        closeDate: item.closeDate || "",
+        applicationDate: item.applicationDate || "",
+        priceRange: item.amount && item.totalUnits
+          ? `Rs ${(item.amount / item.totalUnits).toFixed(2)}`
+          : item.issuePrice ? `Rs ${item.issuePrice}` : "TBA",
+        status: item.status || "Upcoming",
+        issueManager: item.issueManager || "",
+      }));
+      writeCache(cacheKey, transformed);
+      updateStatus(cacheKey, true, transformed.length);
+      return transformed;
     }
   } catch (e) {
     console.error("IPO scraper failed:", e.message);
   }
 
   updateStatus(cacheKey, false, 0);
-  return generateSyntheticIPO();
+  return [];
 }
 
 async function getDividends(symbols, force = false) {
@@ -149,9 +169,27 @@ async function getDividends(symbols, force = false) {
   try {
     const result = await runScraper("dividends");
     if (result && !result.error) {
-      writeCache(cacheKey, result);
-      updateStatus(cacheKey, true, Object.keys(result).length);
-      return result;
+      // Transform to include fields needed by dividend-calendar endpoint and EventsWidget
+      const transformed = {};
+      for (const [sym, divs] of Object.entries(result)) {
+        if (!Array.isArray(divs)) continue;
+        transformed[sym] = divs.map(d => ({
+          ...d,
+          // Fields for dividend-calendar endpoint filter
+          date: d.announcementDate || d.bookCloseDate || "",
+          type: (d.cashDividend > 0 && d.bonusDividend > 0) ? "cash" :
+                d.bonusDividend > 0 ? "bonus" :
+                d.rightsDividend > 0 ? "rights" : "cash",
+          amount: d.totalDividend || d.cashDividend || 0,
+          // Fields for EventsWidget display
+          exDate: d.bookCloseDate || d.announcementDate || "",
+          dividendYield: d.ltp ? ((d.totalDividend || 0) / d.ltp * 100).toFixed(2) : "0",
+          status: d.status || "upcoming",
+        }));
+      }
+      writeCache(cacheKey, transformed);
+      updateStatus(cacheKey, true, Object.keys(transformed).length);
+      return transformed;
     }
   } catch (e) {
     console.error("Dividends scraper failed:", e.message);
@@ -266,24 +304,43 @@ async function getBrokers(force = false) {
   if (!force) {
     let data = readCache(cacheKey, 12);
     if (data) {
-      updateStatus(cacheKey, true, data.length);
+      updateStatus(cacheKey, true, data.brokers ? data.brokers.length : 0);
       return data;
     }
   }
 
   try {
     const result = await runScraper("brokers");
-    if (Array.isArray(result) && result.length > 0 && !result[0]?.error) {
-      writeCache(cacheKey, result);
-      updateStatus(cacheKey, true, result.length);
-      return result;
+    if (result && result.brokers && Array.isArray(result.brokers) && result.brokers.length > 0) {
+      // Transform to match the expected format in server.js
+      const transformed = {
+        date: result.date || new Date().toISOString().split("T")[0],
+        totalTurnover: result.totalTurnover || 0,
+        totalVolume: result.totalVolume || 0,
+        totalTransactions: result.totalTransactions || 0,
+        brokers: result.brokers.map(b => ({
+          brokerNo: b.brokerNo || 0,
+          name: b.name || `Broker ${b.brokerNo}`,
+          buyAmt: b.buyAmount || 0,
+          sellAmt: b.sellAmount || 0,
+          buyQty: b.volume || 0,
+          sellQty: 0,
+          netQty: (b.buyAmount || 0) - (b.sellAmount || 0),
+          turnover: b.totalAmount || b.turnover || 0,
+          transactions: b.transactions || 0,
+          netDirection: (b.buyAmount || 0) > (b.sellAmount || 0) ? "buy" : "sell",
+        })),
+      };
+      writeCache(cacheKey, transformed);
+      updateStatus(cacheKey, true, transformed.brokers.length);
+      return transformed;
     }
   } catch (e) {
     console.error("Brokers scraper failed:", e.message);
   }
 
   updateStatus(cacheKey, false, 0);
-  return generateSyntheticBrokers();
+  return { date: "", totalTurnover: 0, totalVolume: 0, totalTransactions: 0, brokers: [] };
 }
 
 async function getHoldings(symbols, force = false) {

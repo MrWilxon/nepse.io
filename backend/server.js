@@ -1027,46 +1027,25 @@ app.get("/api/nepse-index", async (req, res) => {
   }
 });
 
-app.get("/api/dividends/:symbol", (req, res) => {
+app.get("/api/dividends/:symbol", async (req, res) => {
   const symbol = req.params.symbol.toUpperCase();
-  const records = readCompanyCSV(symbol);
-  if (!records) return res.status(404).json({ error: "Company not found" });
-  const category = CATEGORY_MAP[symbol] || "Other";
-  const firstDate = records[0].published_date;
-  const startYear = parseInt(firstDate.substring(0, 4)) || 2020;
-  const currentYear = 2025;
-  const dividends = [];
-  const hash = symbol.split("").reduce((a, c) => a + c.charCodeAt(0), 0);
-  const dividendRanges = {
-    "Commercial Bank": { cash: [5, 25], bonus: [5, 20], rights: [0, 10] },
-    "Development Bank": { cash: [3, 15], bonus: [5, 15], rights: [0, 5] },
-    "Finance": { cash: [0, 8], bonus: [0, 10], rights: [0, 5] },
-    "Hydropower": { cash: [0, 5], bonus: [0, 5], rights: [0, 3] },
-    "Life Insurance": { cash: [3, 15], bonus: [5, 15], rights: [0, 5] },
-    "Tourism/Hospitality": { cash: [0, 10], bonus: [0, 10], rights: [0, 5] },
-    "Investment": { cash: [0, 10], bonus: [0, 10], rights: [0, 5] },
-    "Other": { cash: [0, 8], bonus: [0, 8], rights: [0, 5] },
-  };
-  const range = dividendRanges[category] || dividendRanges["Other"];
-  for (let year = startYear; year <= currentYear; year++) {
-    const yearHash = (hash + year) % 100;
-    if (yearHash > 30) {
-      const cashAmount = range.cash[0] + (hash + year) % (range.cash[1] - range.cash[0] + 1);
-      dividends.push({ year, amount: cashAmount, type: "cash" });
-    }
-    if (yearHash > 50) {
-      const bonusAmount = range.bonus[0] + (hash + year * 3) % (range.bonus[1] - range.bonus[0] + 1);
-      dividends.push({ year, amount: bonusAmount, type: "bonus" });
-    }
-    if (yearHash > 75 && range.rights[1] > 0) {
-      const rightsAmount = range.rights[0] + (hash + year * 7) % (range.rights[1] - range.rights[0] + 1);
-      if (rightsAmount > 0) dividends.push({ year, amount: rightsAmount, type: "rights" });
-    }
+  if (!CATEGORY_MAP[symbol]) return res.status(404).json({ error: "Company not found" });
+  try {
+    const allDividends = await dataProvider.getDividends();
+    const category = CATEGORY_MAP[symbol] || "Other";
+    const dividends = allDividends[symbol] || [];
+    res.json({ symbol, category, dividends });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
-  res.json({ symbol, category, dividends });
 });
-app.get("/api/ipo", (req, res) => {
-  res.json([]);
+app.get("/api/ipo", async (req, res) => {
+  try {
+    const data = await dataProvider.getIPO();
+    res.json(Array.isArray(data) ? data : []);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.post("/api/backtest", (req, res) => {
@@ -3447,8 +3426,29 @@ app.get("/api/tax-report", (req, res) => {
 });
 
 // --- Dividend Calendar ---
-app.get("/api/dividend-calendar", (req, res) => {
-  res.json({ calendar: [], summary: { totalEntries: 0, upcomingCount: 0, totalCashDividends: 0, avgDividendYield: 0 }, message: "No dividend data available. Dividend data will be populated when scraped." });
+app.get("/api/dividend-calendar", async (req, res) => {
+  try {
+    const allDividends = await dataProvider.getDividends();
+    const calendar = [];
+    const today = new Date().toISOString().split("T")[0];
+    for (const [symbol, divs] of Object.entries(allDividends)) {
+      if (!Array.isArray(divs)) continue;
+      for (const d of divs) {
+        if (d.date && d.date >= today) {
+          calendar.push({ symbol, ...d });
+        }
+      }
+    }
+    calendar.sort((a, b) => (a.date || "").localeCompare(b.date || ""));
+    const upcomingCount = calendar.length;
+    const totalCashDividends = calendar.filter(d => d.type === "cash").reduce((s, d) => s + (d.amount || 0), 0);
+    res.json({
+      calendar,
+      summary: { totalEntries: calendar.length, upcomingCount, totalCashDividends, avgDividendYield: 0 },
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // --- Portfolio Transactions (for tax report, Supabase-backed) ---
@@ -4239,6 +4239,33 @@ app.get("/api/scraper-status", (req, res) => {
   }
 });
 
+const VALID_SCRAPERS = ["fundamentals", "ipo", "dividends", "mutual_funds", "debentures", "insider_trading", "earnings", "brokers", "holdings", "nepse_index", "announcements"];
+app.post("/api/scrapers/run/:name", rateLimit, async (req, res) => {
+  const { name } = req.params;
+  if (!VALID_SCRAPERS.includes(name)) {
+    return res.status(400).json({ error: `Invalid scraper. Valid: ${VALID_SCRAPERS.join(", ")}` });
+  }
+  try {
+    const fnMap = {
+      fundamentals: () => dataProvider.getFundamentals(null, true),
+      ipo: () => dataProvider.getIPO(true),
+      dividends: () => dataProvider.getDividends(null, true),
+      mutual_funds: () => dataProvider.getMutualFunds(true),
+      debentures: () => dataProvider.getDebentures(true),
+      insider_trading: () => dataProvider.getInsiderTrading(true),
+      earnings: () => dataProvider.getEarningsCalendar(true),
+      brokers: () => dataProvider.getBrokers(true),
+      holdings: () => dataProvider.getHoldings(null, true),
+      nepse_index: () => dataProvider.getNepseIndex(true),
+      announcements: () => dataProvider.getAnnouncements(true),
+    };
+    const result = await fnMap[name]();
+    res.json({ status: "ok", scraper: name, count: Array.isArray(result) ? result.length : Object.keys(result || {}).length });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ═══════════════════════════════════════════════════════════
 // INSTITUTIONAL FLOW ENDPOINT
 // ═══════════════════════════════════════════════════════════
@@ -4269,4 +4296,10 @@ server.listen(PORT, () => {
     console.error("Failed to preload data from Supabase:", err.message);
     console.log("Running with empty data cache");
   });
+  try {
+    const { startScheduler } = require("./cron-scheduler");
+    startScheduler();
+  } catch (e) {
+    console.error("Cron scheduler failed to start:", e.message);
+  }
 });

@@ -1,7 +1,7 @@
 import os
 
-ACCOUNTS_CSV_PATH = os.environ.get("ACCOUNTS_CSV_PATH", "accounts.csv")
 VERIFY_SSL = True
+SESSION_CACHE_TTL = 600  # 10 minutes
 
 CAPITALS = [
     {"code": "10100", "id": 1211, "name": "ABC CAPITAL MARKET PVT. LTD."},

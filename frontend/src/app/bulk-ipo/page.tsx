@@ -7,26 +7,31 @@ import {
   Trash2,
   Edit3,
   CheckCircle,
-  XCircle,
   RefreshCw,
   Zap,
   FileText,
   Eye,
   EyeOff,
   ChevronDown,
-  Search,
   AlertTriangle,
   Layers,
   Calendar,
   Hash,
   Shield,
   Loader2,
+  Clock,
+  Download,
 } from "lucide-react";
 
-// Browser fetches go through Next.js API proxy to avoid Turbopack intercepting direct external fetches
 const API_BASE = "/api/bulk-ipo";
 
 interface Account {
+  user: string;
+  dp: string;
+  username: string;
+}
+
+interface AccountForm {
   user: string;
   dp: string;
   username: string;
@@ -63,6 +68,7 @@ interface TaskResult {
   message: string;
   username: string;
   user: string;
+  dry_run?: boolean;
 }
 
 interface TaskStatus {
@@ -87,7 +93,20 @@ interface AccountReport {
   error: string | null;
 }
 
-type TabId = "accounts" | "issues" | "reports";
+interface HistoryEntry {
+  id: number;
+  task_id: string;
+  username: string;
+  user: string;
+  company_name: string;
+  scrip: string;
+  kitta: number;
+  success: number;
+  message: string;
+  applied_at: string;
+}
+
+type TabId = "accounts" | "issues" | "reports" | "history";
 
 function Toast({ message, type, onDone }: { message: string; type: "success" | "danger" | "warning" | "info"; onDone: () => void }) {
   useEffect(() => {
@@ -130,15 +149,16 @@ export default function BulkIPOPage() {
   const [issuesLoading, setIssuesLoading] = useState(false);
   const [reports, setReports] = useState<Record<string, AccountReport>>({});
   const [reportsLoading, setReportsLoading] = useState(false);
+  const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "danger" | "warning" | "info" } | null>(null);
 
   // Account modal
   const [accModalOpen, setAccModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<string | null>(null);
-  const [accForm, setAccForm] = useState<Account>({ user: "", dp: "", username: "", password: "", crn: "", pin: "" });
+  const [accForm, setAccForm] = useState<AccountForm>({ user: "", dp: "", username: "", password: "", crn: "", pin: "" });
   const [dpSearch, setDpSearch] = useState("");
   const [dpOpen, setDpOpen] = useState(false);
-  const [dpIdx, setDpIdx] = useState(-1);
   const dpRef = useRef<HTMLDivElement>(null);
 
   // Progress modal
@@ -163,7 +183,9 @@ export default function BulkIPOPage() {
   const [backendStatus, setBackendStatus] = useState<"checking" | "connected" | "disconnected">("checking");
   const BACKEND_URL = process.env.NEXT_PUBLIC_BULK_IPO_URL || "http://localhost:8000";
 
-  // Safe fetch wrapper - uses Next.js API proxy so Turbopack never sees external fetches
+  // Health polling
+  const healthRef = useRef<NodeJS.Timeout | null>(null);
+
   const safeFetch = useCallback(async (url: string, init?: RequestInit): Promise<Response | null> => {
     try {
       const r = await fetch(url, init);
@@ -173,27 +195,39 @@ export default function BulkIPOPage() {
     }
   }, []);
 
+  // --- Health check ---
+  const checkHealth = useCallback(async () => {
+    const r = await safeFetch(`${API_BASE}/health`);
+    if (r && r.ok) {
+      const data = await r.json();
+      if (data.status === "ok") {
+        setBackendStatus("connected");
+        return true;
+      }
+    }
+    setBackendStatus("disconnected");
+    return false;
+  }, [safeFetch]);
+
   // --- Load data ---
   useEffect(() => {
     (async () => {
-      const r = await safeFetch(`${API_BASE}/capitals`);
-      if (r && r.ok) {
-        const data = await r.json();
-        setCapitals(data);
-        setBackendStatus("connected");
-      } else {
-        setBackendStatus("disconnected");
+      const ok = await checkHealth();
+      if (ok) {
+        const r = await safeFetch(`${API_BASE}/capitals`);
+        if (r && r.ok) setCapitals(await r.json());
+        loadAccounts();
       }
     })();
-    loadAccounts();
-  }, [safeFetch]);
+    healthRef.current = setInterval(checkHealth, 30000);
+    return () => { if (healthRef.current) clearInterval(healthRef.current); };
+  }, [safeFetch, checkHealth]);
 
   const loadAccounts = async () => {
     const r = await safeFetch(`${API_BASE}/accounts`);
     if (r && r.ok) {
       const data = await r.json();
       setAccounts(data);
-      setBackendStatus("connected");
     }
   };
 
@@ -227,7 +261,7 @@ export default function BulkIPOPage() {
     const acc = accounts.find((a) => a.username === username);
     if (!acc) return;
     setEditingUser(username);
-    setAccForm({ ...acc });
+    setAccForm({ ...acc, password: "", crn: "", pin: "" });
     setDpSearch("");
     setShowPw(false);
     setShowPin(false);
@@ -310,10 +344,11 @@ export default function BulkIPOPage() {
 
   useEffect(() => {
     if (tab === "issues" && !issues.length) loadIssues();
+    if (tab === "history" && !history.length) loadHistory();
   }, [tab]);
 
   // --- Bulk Apply ---
-  const handleBulkApply = async (companyShareId: number) => {
+  const handleBulkApply = async (companyShareId: number, dryRun: boolean = false) => {
     const sel = [...selected];
     if (!sel.length) {
       showToast("Select at least one account first", "warning");
@@ -323,7 +358,7 @@ export default function BulkIPOPage() {
     const r = await safeFetch(`${API_BASE}/apply`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ usernames: sel, company_share_id: companyShareId, kitta }),
+      body: JSON.stringify({ usernames: sel, company_share_id: companyShareId, kitta, dry_run: dryRun }),
     });
     if (!r) { showToast("Network error - backend not running", "danger"); return; }
     const data = await r.json();
@@ -355,14 +390,21 @@ export default function BulkIPOPage() {
         const next = [...prev];
         for (let i = next.length; i < task.results.length; i++) {
           const res = task.results[i];
-          next.push(`${res.success ? "✓" : "✗"} ${res.user || res.username}: ${res.message}`);
+          const prefix = res.dry_run ? "🔍" : res.success ? "✓" : "✗";
+          next.push(`${prefix} ${res.user || res.username}: ${res.message}`);
         }
         return next;
       });
       if (task.status === "completed") {
         clearInterval(pollRef.current!);
         const ok = task.results.filter((r) => r.success).length;
-        showToast(`Apply complete: ${ok}/${task.total} successful`, ok === task.total ? "success" : "warning");
+        const isDryRun = task.results[0]?.dry_run;
+        showToast(
+          isDryRun
+            ? `Dry run complete: ${ok}/${task.total} eligible`
+            : `Apply complete: ${ok}/${task.total} successful`,
+          ok === task.total ? "success" : "warning"
+        );
       }
     }, 1000);
   };
@@ -385,6 +427,33 @@ export default function BulkIPOPage() {
     setReportsLoading(false);
   };
 
+  // --- History ---
+  const loadHistory = async () => {
+    setHistoryLoading(true);
+    const r = await safeFetch(`${API_BASE}/history`);
+    if (r && r.ok) {
+      const data = await r.json();
+      setHistory(data);
+    }
+    setHistoryLoading(false);
+  };
+
+  const exportHistory = () => {
+    if (!history.length) return;
+    const header = "Date,Account,User,Company,Scrip,Kitta,Success,Message";
+    const rows = history.map(h =>
+      `"${h.applied_at}","${h.username}","${h.user}","${h.company_name}","${h.scrip}",${h.kitta},${h.success ? "Yes" : "No"},"${h.message}"`
+    );
+    const csv = [header, ...rows].join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `bulk-ipo-history-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   // --- Helpers ---
   const getDPName = (code: string) => capitals.find((c) => c.code === code)?.name || "Unknown";
   const getInitial = (name: string) => name.charAt(0).toUpperCase();
@@ -393,6 +462,7 @@ export default function BulkIPOPage() {
     { id: "accounts", label: "Accounts", icon: Users },
     { id: "issues", label: "Open Issues", icon: Layers },
     { id: "reports", label: "Allotment Reports", icon: FileText },
+    { id: "history", label: "History", icon: Clock },
   ];
 
   return (
@@ -402,9 +472,13 @@ export default function BulkIPOPage() {
       {/* Header */}
       <div className="flex items-center gap-3">
         <Layers className="h-6 w-6 text-[var(--accent)]" />
-        <div>
+        <div className="flex-1">
           <h1 className="text-2xl font-bold text-[var(--text-primary)]">Bulk IPO Manager</h1>
           <p className="text-[var(--text-muted)] text-sm">Manage MeroShare IPO/FPO bulk applications via CDSC API</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className={`w-2 h-2 rounded-full ${backendStatus === "connected" ? "bg-[var(--green)]" : backendStatus === "disconnected" ? "bg-[var(--red)]" : "bg-amber-400 animate-pulse"}`} />
+          <span className="text-xs text-[var(--text-muted)]">{backendStatus === "connected" ? "Connected" : backendStatus === "disconnected" ? "Disconnected" : "Checking..."}</span>
         </div>
       </div>
 
@@ -423,7 +497,7 @@ export default function BulkIPOPage() {
 pip install -r requirements.txt
 uvicorn bulk-ipo.main:app --reload --port 8000`}
               </pre>
-              <button onClick={async () => { setBackendStatus("checking"); const r = await safeFetch(`${API_BASE}/capitals`); if (r && r.ok) { const d = await r.json(); setCapitals(d); setBackendStatus("connected"); } else { setBackendStatus("disconnected"); } }} className="mt-3 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-[var(--red)] text-[var(--red)] hover:bg-[var(--red)]/10 transition-colors">
+              <button onClick={async () => { setBackendStatus("checking"); await checkHealth(); }} className="mt-3 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-[var(--red)] text-[var(--red)] hover:bg-[var(--red)]/10 transition-colors">
                 <RefreshCw className="h-3.5 w-3.5" /> Retry Connection
               </button>
             </div>
@@ -529,7 +603,6 @@ uvicorn bulk-ipo.main:app --reload --port 8000`}
               const sel = accounts.filter((a) => selected.has(a.username));
               return (
                 <div key={issue.company_share_id} className="rounded-xl border border-[var(--border-primary)] bg-[var(--bg-card)] p-5 hover:border-[var(--accent)] hover:shadow-[0_0_20px_rgba(255,215,0,0.08)] transition-all">
-                  {/* Header */}
                   <div className="flex justify-between items-start mb-3">
                     <div>
                       <h3 className="text-base font-semibold text-[var(--text-primary)]">{issue.company_name}</h3>
@@ -543,13 +616,11 @@ uvicorn bulk-ipo.main:app --reload --port 8000`}
                     <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[var(--accent)]/15 text-[var(--accent)]">{issue.status_name}</span>
                   </div>
 
-                  {/* Dates */}
                   <div className="flex gap-5 mb-3 text-xs text-[var(--text-muted)]">
                     <span className="flex items-center gap-1"><Calendar className="h-3 w-3" /> Open: <strong className="text-[var(--text-primary)]">{issue.issue_open_date || "N/A"}</strong></span>
                     <span className="flex items-center gap-1"><Calendar className="h-3 w-3" /> Close: <strong className="text-[var(--text-primary)]">{issue.issue_close_date || "N/A"}</strong></span>
                   </div>
 
-                  {/* Status matrix */}
                   <div className="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-2 mb-4">
                     {sel.length === 0 ? (
                       <div className="text-xs text-[var(--text-muted)]">Select accounts in the Accounts tab first.</div>
@@ -569,7 +640,6 @@ uvicorn bulk-ipo.main:app --reload --port 8000`}
                     )}
                   </div>
 
-                  {/* Apply controls */}
                   <div className="flex items-center gap-3 pt-3 border-t border-[var(--border-primary)]">
                     <label className="text-xs text-[var(--text-muted)]">Kitta:</label>
                     <input
@@ -581,7 +651,13 @@ uvicorn bulk-ipo.main:app --reload --port 8000`}
                       className="w-20 px-2 py-1 rounded-lg bg-[var(--bg-hover)] border border-[var(--border-primary)] text-[var(--text-primary)] text-xs text-center outline-none focus:border-[var(--accent)]"
                     />
                     <button
-                      onClick={() => handleBulkApply(issue.company_share_id)}
+                      onClick={() => handleBulkApply(issue.company_share_id, true)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-[var(--accent)] text-[var(--accent)] hover:bg-[var(--accent)]/10 transition-colors"
+                    >
+                      Dry Run
+                    </button>
+                    <button
+                      onClick={() => handleBulkApply(issue.company_share_id, false)}
                       className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-medium bg-[var(--accent)] text-black hover:opacity-90 transition-opacity ml-auto"
                     >
                       <Zap className="h-3.5 w-3.5" /> Bulk Apply Selected
@@ -664,6 +740,70 @@ uvicorn bulk-ipo.main:app --reload --port 8000`}
         </div>
       )}
 
+      {/* ============ HISTORY TAB ============ */}
+      {tab === "history" && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-[var(--text-muted)] mr-auto">{history.length} record{history.length !== 1 ? "s" : ""}</span>
+            <button onClick={exportHistory} disabled={!history.length} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-[var(--border-primary)] text-[var(--text-muted)] hover:text-[var(--accent)] hover:border-[var(--accent)] transition-colors disabled:opacity-40">
+              <Download className="h-3.5 w-3.5" /> Export CSV
+            </button>
+            <button onClick={loadHistory} disabled={historyLoading} className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-medium bg-[var(--accent)] text-black hover:opacity-90 transition-opacity disabled:opacity-50">
+              {historyLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+              Refresh
+            </button>
+          </div>
+
+          {historyLoading ? (
+            <div className="text-center py-20 text-[var(--text-muted)]">
+              <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-[var(--accent)]" />
+              <p className="text-sm">Loading history...</p>
+            </div>
+          ) : history.length === 0 ? (
+            <div className="text-center py-20 text-[var(--text-muted)]">
+              <Clock className="h-12 w-12 mx-auto mb-4 opacity-30" />
+              <p className="text-sm">No apply history yet.</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto rounded-xl border border-[var(--border-primary)] bg-[var(--bg-card)]">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-[var(--border-primary)] text-left text-xs font-medium text-[var(--text-muted)]">
+                    <th className="px-4 py-3">Date</th>
+                    <th className="px-4 py-3">Account</th>
+                    <th className="px-4 py-3">Company</th>
+                    <th className="px-4 py-3">Scrip</th>
+                    <th className="px-4 py-3 text-right">Kitta</th>
+                    <th className="px-4 py-3">Status</th>
+                    <th className="px-4 py-3">Message</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[var(--border-primary)]">
+                  {history.map((h) => (
+                    <tr key={h.id} className="hover:bg-[var(--bg-hover)] transition-colors">
+                      <td className="px-4 py-2.5 text-xs text-[var(--text-muted)]">{h.applied_at}</td>
+                      <td className="px-4 py-2.5">
+                        <div className="text-[var(--text-primary)] text-xs">{h.user}</div>
+                        <div className="text-[var(--text-muted)] text-[10px] font-mono">{h.username}</div>
+                      </td>
+                      <td className="px-4 py-2.5 text-[var(--text-primary)] text-xs">{h.company_name}</td>
+                      <td className="px-4 py-2.5 text-[var(--text-muted)] text-xs">{h.scrip}</td>
+                      <td className="px-4 py-2.5 text-right font-mono text-xs">{h.kitta}</td>
+                      <td className="px-4 py-2.5">
+                        <span className={`px-2 py-0.5 rounded text-xs font-semibold ${h.success ? "bg-[var(--green-bg)] text-[var(--green)]" : "bg-[var(--red-bg)] text-[var(--red)]"}`}>
+                          {h.success ? "Success" : "Failed"}
+                        </span>
+                      </td>
+                      <td className="px-4 py-2.5 text-[var(--text-muted)] text-xs max-w-[200px] truncate">{h.message}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* ============ ACCOUNT MODAL ============ */}
       <Modal open={accModalOpen} onClose={() => setAccModalOpen(false)} title={editingUser ? "Edit Account" : "Add Account"}>
         <div className="space-y-4">
@@ -676,18 +816,18 @@ uvicorn bulk-ipo.main:app --reload --port 8000`}
             <label className="block text-xs font-medium text-[var(--text-muted)] mb-1.5">DP (Depository Participant)</label>
             <input
               value={dpOpen ? dpSearch : accForm.dp ? `${capitals.find((c) => c.code === accForm.dp)?.name || ""} (${accForm.dp})` : ""}
-              onChange={(e) => { setDpSearch(e.target.value); setDpOpen(true); setDpIdx(-1); setAccForm((f) => ({ ...f, dp: "" })); }}
+              onChange={(e) => { setDpSearch(e.target.value); setDpOpen(true); setAccForm((f) => ({ ...f, dp: "" })); }}
               onFocus={() => { setDpOpen(true); setDpSearch(""); }}
               placeholder="Search DP code or name (select from dropdown)..."
               className="w-full px-3 py-2 rounded-lg bg-[var(--bg-hover)] border border-[var(--border-primary)] text-[var(--text-primary)] text-sm outline-none focus:border-[var(--accent)]"
             />
             {dpOpen && filteredDP.length > 0 && (
               <div className="absolute top-full left-0 right-0 max-h-52 overflow-y-auto bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-b-lg z-50">
-                {filteredDP.map((c, i) => (
+                {filteredDP.map((c) => (
                   <div
                     key={c.code}
                     onMouseDown={() => selectDP(c.code)}
-                    className={`px-3 py-2.5 cursor-pointer text-sm border-b border-[var(--border-primary)] last:border-0 ${i === dpIdx ? "bg-[var(--bg-hover)] text-[var(--accent)]" : "text-[var(--text-primary)] hover:bg-[var(--bg-hover)]"}`}
+                    className="px-3 py-2.5 cursor-pointer text-sm border-b border-[var(--border-primary)] last:border-0 text-[var(--text-primary)] hover:bg-[var(--bg-hover)]"
                   >
                     {c.name}
                     <span className="ml-2 text-xs text-[var(--accent)]">{c.code}</span>
@@ -705,7 +845,7 @@ uvicorn bulk-ipo.main:app --reload --port 8000`}
             <div>
               <label className="block text-xs font-medium text-[var(--text-muted)] mb-1.5">Password</label>
               <div className="relative">
-                <input type={showPw ? "text" : "password"} value={accForm.password} onChange={(e) => setAccForm((f) => ({ ...f, password: e.target.value }))} placeholder="MeroShare password" className="w-full px-3 py-2 pr-9 rounded-lg bg-[var(--bg-hover)] border border-[var(--border-primary)] text-[var(--text-primary)] text-sm outline-none focus:border-[var(--accent)]" />
+                <input type={showPw ? "text" : "password"} value={accForm.password} onChange={(e) => setAccForm((f) => ({ ...f, password: e.target.value }))} placeholder={editingUser ? "(unchanged)" : "MeroShare password"} className="w-full px-3 py-2 pr-9 rounded-lg bg-[var(--bg-hover)] border border-[var(--border-primary)] text-[var(--text-primary)] text-sm outline-none focus:border-[var(--accent)]" />
                 <button type="button" onClick={() => setShowPw(!showPw)} className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--text-muted)] hover:text-[var(--text-primary)]">
                   {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
@@ -721,7 +861,7 @@ uvicorn bulk-ipo.main:app --reload --port 8000`}
             <div>
               <label className="block text-xs font-medium text-[var(--text-muted)] mb-1.5">Transaction PIN (4-digit)</label>
               <div className="relative">
-                <input type={showPin ? "text" : "password"} value={accForm.pin} onChange={(e) => setAccForm((f) => ({ ...f, pin: e.target.value }))} placeholder="PIN" maxLength={4} className="w-full px-3 py-2 pr-9 rounded-lg bg-[var(--bg-hover)] border border-[var(--border-primary)] text-[var(--text-primary)] text-sm outline-none focus:border-[var(--accent)]" />
+                <input type={showPin ? "text" : "password"} value={accForm.pin} onChange={(e) => setAccForm((f) => ({ ...f, pin: e.target.value }))} placeholder={editingUser ? "(unchanged)" : "PIN"} maxLength={4} className="w-full px-3 py-2 pr-9 rounded-lg bg-[var(--bg-hover)] border border-[var(--border-primary)] text-[var(--text-primary)] text-sm outline-none focus:border-[var(--accent)]" />
                 <button type="button" onClick={() => setShowPin(!showPin)} className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--text-muted)] hover:text-[var(--text-primary)]">
                   {showPin ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
@@ -745,7 +885,7 @@ uvicorn bulk-ipo.main:app --reload --port 8000`}
       </Modal>
 
       {/* ============ PROGRESS MODAL ============ */}
-      <Modal open={progressOpen} onClose={() => { if (taskStatus?.status === "completed") { setProgressOpen(false); if (pollRef.current) clearInterval(pollRef.current); } }} title="Bulk Apply Progress">
+      <Modal open={progressOpen} onClose={() => { if (taskStatus?.status === "completed") { setProgressOpen(false); if (pollRef.current) clearInterval(pollRef.current); } }} title={taskStatus?.results?.[0]?.dry_run ? "Dry Run Results" : "Bulk Apply Progress"}>
         <div className="space-y-4">
           {taskStatus && (
             <>
@@ -760,7 +900,7 @@ uvicorn bulk-ipo.main:app --reload --port 8000`}
               <div className="text-[var(--text-muted)]">Waiting for results...</div>
             ) : (
               taskLogs.map((log, i) => (
-                <div key={i} className={log.startsWith("✓") ? "text-[var(--green)]" : "text-[var(--red)]"}>{log}</div>
+                <div key={i} className={log.startsWith("✓") ? "text-[var(--green)]" : log.startsWith("🔍") ? "text-[var(--accent)]" : "text-[var(--red)]"}>{log}</div>
               ))
             )}
           </div>

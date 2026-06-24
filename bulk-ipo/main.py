@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from .api import router
+from .database import init_db
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -18,12 +19,13 @@ STATIC_DIR = Path(__file__).parent / "static"
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info("Bulk IPO service starting")
+    await init_db()
+    logger.info("Bulk IPO service started (DB initialized)")
     yield
     logger.info("Bulk IPO service shutting down")
 
 
-app = FastAPI(title="Bulk IPO Manager", version="1.0.0", lifespan=lifespan)
+app = FastAPI(title="Bulk IPO Manager", version="2.0.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,

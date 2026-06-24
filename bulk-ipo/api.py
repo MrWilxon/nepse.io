@@ -1,10 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-import csv
-import io
 import logging
-import os
 import time
 import uuid
 from typing import Optional
@@ -12,18 +9,16 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+from . import database as db
 from .models import Account
 from .services.meroshare import MeroShareService
-from .settings import ACCOUNTS_CSV_PATH, CAPITALS
+from .settings import CAPITALS
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api")
 
-csv_lock = asyncio.Lock()
 tasks_status: dict[str, dict] = {}
 TASK_TTL = 600
-
-CSV_HEADERS = ["user", "dp", "username", "password", "crn", "pin"]
 
 
 # --- Pydantic request models ---
@@ -41,27 +36,10 @@ class ApplyRequest(BaseModel):
     usernames: list[str]
     company_share_id: int
     kitta: int = 10
+    dry_run: bool = False
 
 
-# --- CSV helpers ---
-
-async def _read_accounts() -> list[dict]:
-    if not os.path.exists(ACCOUNTS_CSV_PATH):
-        return []
-    async with csv_lock:
-        with open(ACCOUNTS_CSV_PATH, "r", encoding="utf-8") as f:
-            reader = csv.DictReader(f)
-            return [row for row in reader]
-
-
-async def _write_accounts(accounts: list[dict]):
-    async with csv_lock:
-        with open(ACCOUNTS_CSV_PATH, "w", newline="", encoding="utf-8") as f:
-            writer = csv.DictWriter(f, fieldnames=CSV_HEADERS)
-            writer.writeheader()
-            for acc in accounts:
-                writer.writerow({k: acc.get(k, "") for k in CSV_HEADERS})
-
+# --- Helpers ---
 
 def _dict_to_account(d: dict) -> Account:
     return Account(
@@ -91,38 +69,47 @@ def _cleanup_tasks():
         del tasks_status[k]
 
 
-# --- Account endpoints ---
+# --- Health ---
+
+@router.get("/health")
+async def health():
+    try:
+        accounts = await db.get_all_accounts_safe()
+        return {"status": "ok", "accounts": len(accounts)}
+    except Exception:
+        return {"status": "error", "accounts": 0}
+
+
+# --- Capital list ---
 
 @router.get("/capitals")
 async def get_capitals():
     return CAPITALS
 
 
+# --- Account endpoints ---
+
 @router.get("/accounts")
 async def get_accounts():
-    return await _read_accounts()
+    return await db.get_all_accounts_safe()
 
 
 @router.post("/accounts")
 async def create_or_update_account(account: AccountCreate):
-    accounts = await _read_accounts()
-    existing = next((a for a in accounts if a["username"] == account.username), None)
-    acc_dict = account.model_dump()
-    if existing:
-        accounts = [acc_dict if a["username"] == account.username else a for a in accounts]
-    else:
-        accounts.append(acc_dict)
-    await _write_accounts(accounts)
+    try:
+        acc = _dict_to_account(account.model_dump())
+        _ = acc.client_id  # validate DP code
+    except ValueError as e:
+        return {"success": False, "message": str(e)}
+    await db.upsert_account(account.user, account.dp, account.username, account.password, account.crn, account.pin)
     return {"success": True, "message": f"Account '{account.user}' saved."}
 
 
 @router.delete("/accounts/{username}")
 async def delete_account(username: str):
-    accounts = await _read_accounts()
-    new_accounts = [a for a in accounts if a["username"] != username]
-    if len(new_accounts) == len(accounts):
+    deleted = await db.delete_account(username)
+    if not deleted:
         raise HTTPException(status_code=404, detail="Account not found")
-    await _write_accounts(new_accounts)
     return {"success": True, "message": f"Account '{username}' deleted."}
 
 
@@ -151,7 +138,7 @@ async def verify_account(account: AccountCreate):
 
 @router.get("/issues")
 async def get_issues():
-    accounts = await _read_accounts()
+    accounts = await db.get_accounts()
     if not accounts:
         return {"issues": [], "account_errors": []}
 
@@ -183,8 +170,8 @@ async def get_issues():
 
 # --- Bulk apply ---
 
-async def _bulk_apply_task(task_id: str, usernames: list[str], company_share_id: int, kitta: int):
-    accounts = await _read_accounts()
+async def _bulk_apply_task(task_id: str, usernames: list[str], company_share_id: int, kitta: int, dry_run: bool):
+    accounts = await db.get_accounts()
     selected = [a for a in accounts if a["username"] in usernames]
 
     tasks_status[task_id]["total"] = len(selected)
@@ -195,7 +182,20 @@ async def _bulk_apply_task(task_id: str, usernames: list[str], company_share_id:
         try:
             acc = _dict_to_account(acc_dict)
             async with MeroShareService(acc) as svc:
-                result = await svc.apply(kitta, company_share_id)
+                if dry_run:
+                    result = await svc.dry_run_apply(company_share_id)
+                    result = {"success": result["can_apply"], "message": result["reason"], "dry_run": True}
+                else:
+                    result = await svc.apply(kitta, company_share_id)
+                    # Record in history
+                    issues = await svc.get_open_issues()
+                    issue = next((i for i in issues if i.company_share_id == company_share_id), None)
+                    await db.record_apply(
+                        task_id, acc.username, acc.user, company_share_id,
+                        issue.company_name if issue else "Unknown",
+                        issue.scrip if issue else "Unknown",
+                        kitta, result["success"], result["message"],
+                    )
                 result["username"] = acc.username
                 result["user"] = acc.user
                 return result
@@ -224,8 +224,8 @@ async def bulk_apply(req: ApplyRequest):
         "results": [],
         "timestamp": time.time(),
     }
-    asyncio.create_task(_bulk_apply_task(task_id, req.usernames, req.company_share_id, req.kitta))
-    return {"task_id": task_id, "status": "queued"}
+    asyncio.create_task(_bulk_apply_task(task_id, req.usernames, req.company_share_id, req.kitta, req.dry_run))
+    return {"task_id": task_id, "status": "queued", "dry_run": req.dry_run}
 
 
 @router.get("/tasks/{task_id}")
@@ -242,12 +242,12 @@ async def get_task_status(task_id: str):
 @router.get("/reports")
 async def get_reports(usernames: Optional[str] = None):
     if not usernames:
-        accounts = await _read_accounts()
-        username_list = [a["username"] for a in accounts]
+        all_accs = await db.get_accounts()
+        username_list = [a["username"] for a in all_accs]
     else:
         username_list = [u.strip() for u in usernames.split(",")]
 
-    all_accounts = await _read_accounts()
+    all_accounts = await db.get_accounts()
     selected = [a for a in all_accounts if a["username"] in username_list]
 
     results = {}
@@ -264,3 +264,10 @@ async def get_reports(usernames: Optional[str] = None):
     coros = [fetch_reports(a) for a in selected]
     await _run_staggered(coros)
     return results
+
+
+# --- History ---
+
+@router.get("/history")
+async def get_history(limit: int = 100):
+    return await db.get_apply_history(limit)

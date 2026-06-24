@@ -86,12 +86,14 @@ function updateStatus(key, success, recordCount = 0) {
 // DATA PROVIDERS - Each returns real data or falls back to synthetic
 // ═══════════════════════════════════════════════════════════
 
-async function getFundamentals(symbols) {
+async function getFundamentals(symbols, force = false) {
   const cacheKey = "fundamentals";
-  let data = readCache(cacheKey, 48);
-  if (data) {
-    updateStatus(cacheKey, true, Object.keys(data).length);
-    return data;
+  if (!force) {
+    let data = readCache(cacheKey, 48);
+    if (data) {
+      updateStatus(cacheKey, true, Object.keys(data).length);
+      return data;
+    }
   }
 
   try {
@@ -109,12 +111,14 @@ async function getFundamentals(symbols) {
   return generateSyntheticFundamentals(symbols);
 }
 
-async function getIPO() {
+async function getIPO(force = false) {
   const cacheKey = "ipo";
-  let data = readCache(cacheKey, 24);
-  if (data) {
-    updateStatus(cacheKey, true, data.length);
-    return data;
+  if (!force) {
+    let data = readCache(cacheKey, 24);
+    if (data) {
+      updateStatus(cacheKey, true, data.length);
+      return data;
+    }
   }
 
   try {
@@ -132,12 +136,14 @@ async function getIPO() {
   return generateSyntheticIPO();
 }
 
-async function getDividends(symbols) {
+async function getDividends(symbols, force = false) {
   const cacheKey = "dividends";
-  let data = readCache(cacheKey, 48);
-  if (data) {
-    updateStatus(cacheKey, true, Object.keys(data).length);
-    return data;
+  if (!force) {
+    let data = readCache(cacheKey, 48);
+    if (data) {
+      updateStatus(cacheKey, true, Object.keys(data).length);
+      return data;
+    }
   }
 
   try {
@@ -155,12 +161,14 @@ async function getDividends(symbols) {
   return {};
 }
 
-async function getMutualFunds() {
+async function getMutualFunds(force = false) {
   const cacheKey = "mutual_funds";
-  let data = readCache(cacheKey, 24);
-  if (data) {
-    updateStatus(cacheKey, true, data.length);
-    return data;
+  if (!force) {
+    let data = readCache(cacheKey, 24);
+    if (data) {
+      updateStatus(cacheKey, true, data.length);
+      return data;
+    }
   }
 
   try {
@@ -178,12 +186,14 @@ async function getMutualFunds() {
   return generateSyntheticMutualFunds();
 }
 
-async function getDebentures() {
+async function getDebentures(force = false) {
   const cacheKey = "debentures";
-  let data = readCache(cacheKey, 24);
-  if (data) {
-    updateStatus(cacheKey, true, data.length);
-    return data;
+  if (!force) {
+    let data = readCache(cacheKey, 24);
+    if (data) {
+      updateStatus(cacheKey, true, data.length);
+      return data;
+    }
   }
 
   try {
@@ -201,12 +211,14 @@ async function getDebentures() {
   return generateSyntheticDebentures();
 }
 
-async function getInsiderTrading() {
+async function getInsiderTrading(force = false) {
   const cacheKey = "insider_trading";
-  let data = readCache(cacheKey, 12);
-  if (data) {
-    updateStatus(cacheKey, true, data.length);
-    return data;
+  if (!force) {
+    let data = readCache(cacheKey, 12);
+    if (data) {
+      updateStatus(cacheKey, true, data.length);
+      return data;
+    }
   }
 
   try {
@@ -224,12 +236,14 @@ async function getInsiderTrading() {
   return generateSyntheticInsiderTrading();
 }
 
-async function getEarningsCalendar() {
+async function getEarningsCalendar(force = false) {
   const cacheKey = "earnings_calendar";
-  let data = readCache(cacheKey, 24);
-  if (data) {
-    updateStatus(cacheKey, true, data.length);
-    return data;
+  if (!force) {
+    let data = readCache(cacheKey, 24);
+    if (data) {
+      updateStatus(cacheKey, true, data.length);
+      return data;
+    }
   }
 
   try {
@@ -247,12 +261,14 @@ async function getEarningsCalendar() {
   return [];
 }
 
-async function getBrokers() {
+async function getBrokers(force = false) {
   const cacheKey = "brokers";
-  let data = readCache(cacheKey, 12);
-  if (data) {
-    updateStatus(cacheKey, true, data.length);
-    return data;
+  if (!force) {
+    let data = readCache(cacheKey, 12);
+    if (data) {
+      updateStatus(cacheKey, true, data.length);
+      return data;
+    }
   }
 
   try {
@@ -270,12 +286,14 @@ async function getBrokers() {
   return generateSyntheticBrokers();
 }
 
-async function getHoldings(symbols) {
+async function getHoldings(symbols, force = false) {
   const cacheKey = "holdings";
-  let data = readCache(cacheKey, 48);
-  if (data) {
-    updateStatus(cacheKey, true, Object.keys(data).length);
-    return data;
+  if (!force) {
+    let data = readCache(cacheKey, 48);
+    if (data) {
+      updateStatus(cacheKey, true, Object.keys(data).length);
+      return data;
+    }
   }
 
   try {
@@ -293,12 +311,14 @@ async function getHoldings(symbols) {
   return generateSyntheticHoldings();
 }
 
-async function getNepseIndex() {
+async function getNepseIndex(force = false) {
   const cacheKey = "nepse_index";
-  let data = readCache(cacheKey, 12);
-  if (data) {
-    updateStatus(cacheKey, true, 1);
-    return data;
+  if (!force) {
+    let data = readCache(cacheKey, 12);
+    if (data) {
+      updateStatus(cacheKey, true, 1);
+      return data;
+    }
   }
 
   try {
@@ -316,12 +336,14 @@ async function getNepseIndex() {
   return { nepseIndex: null, subIndices: [], history: [], _simulated: true };
 }
 
-async function getAnnouncements() {
+async function getAnnouncements(force = false) {
   const cacheKey = "announcements";
-  let data = readCache(cacheKey, 6);
-  if (data) {
-    updateStatus(cacheKey, true, data.length);
-    return data;
+  if (!force) {
+    let data = readCache(cacheKey, 6);
+    if (data) {
+      updateStatus(cacheKey, true, data.length);
+      return data;
+    }
   }
 
   try {

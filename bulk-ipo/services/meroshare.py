@@ -2,15 +2,20 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from datetime import datetime, timedelta
 from typing import Optional
 
 import httpx
 
 from ..models import Account, Issue
-from ..settings import VERIFY_SSL
+from ..settings import VERIFY_SSL, SESSION_CACHE_TTL
 
 logger = logging.getLogger(__name__)
+
+# Global session cache: key = username, value = {"auth": str, "branch": dict, "expires": float}
+_session_cache: dict[str, dict] = {}
+_cache_lock = asyncio.Lock()
 
 
 class MeroShareService:
@@ -32,6 +37,7 @@ class MeroShareService:
         self._authorization: Optional[str] = None
         self._branch_info: Optional[dict] = None
         self._client = httpx.AsyncClient(verify=VERIFY_SSL, timeout=30.0, headers=self.BROWSER_HEADERS)
+        self._from_cache = False
 
     async def __aenter__(self):
         await self.initialize()
@@ -49,9 +55,40 @@ class MeroShareService:
         return {"Authorization": self._authorization} if self._authorization else {}
 
     async def initialize(self):
+        cached = await self._get_cached_session()
+        if cached:
+            self._authorization = cached["auth"]
+            self._branch_info = cached["branch"]
+            self._from_cache = True
+            return
+
         await self.create_session()
         await asyncio.sleep(0.3)
         await self.set_branch_info()
+        await self._cache_session()
+
+    async def _get_cached_session(self) -> dict | None:
+        async with _cache_lock:
+            entry = _session_cache.get(self.account.username)
+            if entry and time.time() < entry["expires"]:
+                return entry
+            if entry:
+                del _session_cache[self.account.username]
+            return None
+
+    async def _cache_session(self):
+        if not self._authorization:
+            return
+        async with _cache_lock:
+            _session_cache[self.account.username] = {
+                "auth": self._authorization,
+                "branch": self._branch_info or {},
+                "expires": time.time() + SESSION_CACHE_TTL,
+            }
+
+    async def invalidate_cache(self):
+        async with _cache_lock:
+            _session_cache.pop(self.account.username, None)
 
     async def create_session(self):
         url = f"{self.BASE_URL}/auth/"
@@ -157,6 +194,21 @@ class MeroShareService:
                 return {"success": False, "message": msg}
         except Exception as e:
             return {"success": False, "message": str(e)}
+
+    async def dry_run_apply(self, company_share_id: int) -> dict:
+        """Check eligibility without actually applying."""
+        try:
+            issues = await self.get_open_issues()
+            issue = next((i for i in issues if i.company_share_id == company_share_id), None)
+            if not issue:
+                return {"can_apply": False, "reason": "Issue not found"}
+            if not issue.is_unapplied_ordinary_share:
+                return {"can_apply": False, "reason": f"Not eligible ({issue.share_group_name}, action={issue.action})"}
+            if not await self.can_apply(company_share_id):
+                return {"can_apply": False, "reason": "CDSC says cannot apply"}
+            return {"can_apply": True, "reason": "Eligible to apply"}
+        except Exception as e:
+            return {"can_apply": False, "reason": str(e)}
 
     async def generate_reports(self) -> list[dict]:
         end_date = datetime.now()

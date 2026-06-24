@@ -18,6 +18,7 @@ import Breadcrumbs from "@/components/breadcrumbs";
 import KeyboardShortcutsProvider from "@/components/keyboard-shortcuts";
 import MobileNav from "@/components/mobile-nav";
 import Sidebar from "@/components/sidebar";
+import Footer from "@/components/footer";
 import { API_BASE } from "@/lib/api";
 import { LeaderboardAd } from "@/components/adsense";
 
@@ -117,6 +118,9 @@ function InnerLayout({ children }: { children: React.ReactNode }) {
           <Breadcrumbs />
           {children}
         </div>
+
+        {/* Footer */}
+        <Footer />
       </main>
     </>
   );
@@ -143,7 +147,33 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="apple-mobile-web-app-title" content="NEPSE.io" />
         <meta name="application-name" content="NEPSE.io" />
-        <meta name="description" content="All-in-one Nepal Stock Exchange analytics platform" />
+        <meta name="description" content="NEPSE.io - Free Nepal Stock Exchange analytics platform with real-time prices, technical analysis, stock screener, portfolio tracking, and AI predictions for NEPSE-listed companies." />
+        <meta name="keywords" content="NEPSE, Nepal Stock Exchange, stock market Nepal, share price, technical analysis, stock screener, portfolio tracker, NEPSE live, Nepal shares, stock trading Nepal" />
+        <meta name="author" content="NEPSE.io" />
+        <meta name="robots" content="index, follow" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        {/* Open Graph */}
+        <meta property="og:type" content="website" />
+        <meta property="og:title" content="NEPSE.io - Nepal Stock Exchange Analytics" />
+        <meta property="og:description" content="Free all-in-one NEPSE analytics platform with real-time prices, technical indicators, stock screener, and AI predictions." />
+        <meta property="og:url" content="https://nepse.wilson.com.np" />
+        <meta property="og:site_name" content="NEPSE.io" />
+        <meta property="og:image" content="https://nepse.wilson.com.np/icon.svg" />
+        <meta property="og:image:width" content="1200" />
+        <meta property="og:image:height" content="630" />
+        <meta property="og:locale" content="en_US" />
+        {/* Twitter Card */}
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="NEPSE.io - Nepal Stock Exchange Analytics" />
+        <meta name="twitter:description" content="Free all-in-one NEPSE analytics platform with real-time prices, technical indicators, stock screener, and AI predictions." />
+        <meta name="twitter:image" content="https://nepse.wilson.com.np/icon.svg" />
+        {/* Canonical URL */}
+        <link rel="canonical" href="https://nepse.wilson.com.np" />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `try{var t=localStorage.getItem("nepse_theme");if(t==="light"||t==="dark"){document.documentElement.setAttribute("data-theme",t)}}catch(e){}`,
+          }}
+        />
         <script
           async
           src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9798460762666960"

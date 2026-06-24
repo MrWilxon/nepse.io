@@ -45,6 +45,8 @@ env/
 # Scraper cookies/config
 src/config/cookies.py
 
-# Bulk IPO accounts (sensitive)
+# Bulk IPO (sensitive data + DB)
 bulk-ipo/accounts.csv
+bulk-ipo/*.db
+bulk-ipo/.encryption_key
 accounts.csv

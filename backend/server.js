@@ -157,14 +157,15 @@ function startLiveFeed() {
       .map(({ symbol, records }) => {
         const latest = records[records.length - 1];
         const close = parseFloat(latest.close) || 0;
-        const jitter = (Math.random() - 0.5) * close * 0.005;
+        const prevClose = records.length > 1 ? parseFloat(records[records.length - 2].close) || close : close;
+        const change = close - prevClose;
         return {
           symbol,
           lastClose: close,
-          price: Math.round((close + jitter) * 100) / 100,
-          change: Math.round(jitter * 100) / 100,
+          price: close,
+          change: Math.round(change * 100) / 100,
           volume: parseInt(latest.traded_quantity) || 0,
-          time: new Date().toISOString(),
+          time: latest.published_date || new Date().toISOString(),
         };
       });
     broadcast({ type: "price_update", data: sample });
@@ -1325,46 +1326,7 @@ app.get("/api/sentiment/:symbol", (req, res) => {
   const symbol = req.params.symbol.toUpperCase();
   const records = readCompanyCSV(symbol);
   if (!records) return res.status(404).json({ error: "Company not found" });
-  const hash = symbol.split("").reduce((a, c) => a + c.charCodeAt(0), 0);
-  const sentimentTypes = ["bullish", "bearish", "neutral"];
-  const overall = sentimentTypes[hash % 3];
-  const score = overall === "bullish" ? 60 + (hash % 30) : overall === "bearish" ? 10 + (hash % 30) : 40 + (hash % 20);
-  const headlineTemplates = [
-    { template: `${symbol} shows strong upward momentum in today's trading session`, baseSentiment: "bullish" },
-    { template: `${symbol} reports mixed signals as market volatility continues`, baseSentiment: "neutral" },
-    { template: `${symbol} faces selling pressure amid broader market correction`, baseSentiment: "bearish" },
-    { template: `Analysts upgrade ${symbol} citing improved fundamentals`, baseSentiment: "bullish" },
-    { template: `${symbol} trading volume surges as investors react to quarterly results`, baseSentiment: "neutral" },
-    { template: `${symbol} breaks below key support level, technical indicators turn bearish`, baseSentiment: "bearish" },
-    { template: `Institutional investors increase holdings in ${symbol}`, baseSentiment: "bullish" },
-    { template: `${symbol} dividend announcement boosts investor confidence`, baseSentiment: "bullish" },
-    { template: `Market uncertainty weighs on ${symbol} share price`, baseSentiment: "bearish" },
-    { template: `${symbol} consolidation phase continues, analysts await catalyst`, baseSentiment: "neutral" },
-  ];
-  const sources = ["Nepal Stock Exchange", "NepalMoney", "ShareSansar", "LiveStockMarket", "NEPSE Analytics"];
-  const headlines = [];
-  const usedIndices = new Set();
-  for (let i = 0; i < 5; i++) {
-    let idx = (hash + i * 7) % headlineTemplates.length;
-    let attempts = 0;
-    while (usedIndices.has(idx) && attempts < headlineTemplates.length) {
-      idx = (idx + 1) % headlineTemplates.length;
-      attempts++;
-    }
-    usedIndices.add(idx);
-    const h = headlineTemplates[idx];
-    const dayOffset = (hash + i * 3) % 30;
-    const date = new Date();
-    date.setDate(date.getDate() - dayOffset);
-    const dateStr = date.toISOString().split("T")[0];
-    headlines.push({
-      title: h.template,
-      sentiment: h.baseSentiment,
-      source: sources[(hash + i) % sources.length],
-      date: dateStr,
-    });
-  }
-  res.json({ symbol, overall, score, headlines });
+  res.json({ symbol, overall: "neutral", score: 50, platforms: [], trendingTopics: [], dailySentiment: [] });
 });
 
 app.get("/api/daily-scrape", rateLimit, (req, res) => {
@@ -1822,36 +1784,14 @@ function generateOptionsChain(symbol) {
 }
 
 app.get("/api/options/:symbol", (req, res) => {
-  try {
-    const symbol = req.params.symbol.toUpperCase();
-    const expiry = req.query.expiry || OPTIONS_EXPIRY_DATES[0];
-    const chainData = generateOptionsChain(symbol);
-    if (!chainData) return res.status(404).json({ error: "Company not found" });
-    res.json({ ...chainData, expiry, expiryDates: OPTIONS_EXPIRY_DATES });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+  const symbol = req.params.symbol.toUpperCase();
+  if (!CATEGORY_MAP[symbol]) return res.status(404).json({ error: "Company not found" });
+  res.json({ symbol, spotPrice: null, chain: [], strikes: [], expiry: null, expiryDates: [], message: "Options market not available on NEPSE" });
 });
 
 // ============ MUTUAL FUND NAV TRACKING ============
 function generateMFHistory(nav, days) {
-  const history = [];
-  let currentNav = nav * 0.85;
-  const now = new Date();
-  for (let i = days; i >= 0; i--) {
-    const date = new Date(now);
-    date.setDate(date.getDate() - i);
-    if (date.getDay() === 0 || date.getDay() === 6) continue;
-    const change = (Math.random() - 0.48) * currentNav * 0.02;
-    currentNav = Math.max(currentNav + change, currentNav * 0.9);
-    history.push({
-      date: date.toISOString().split("T")[0],
-      nav: Math.round(currentNav * 100) / 100,
-      change: Math.round(change * 100) / 100,
-      changePct: Math.round((change / currentNav) * 10000) / 100,
-    });
-  }
-  return history;
+  return [];
 }
 
 app.get("/api/mutual-funds", async (req, res) => {
@@ -1859,10 +1799,10 @@ app.get("/api/mutual-funds", async (req, res) => {
     const funds = await dataProvider.getMutualFunds();
     const enriched = Array.isArray(funds) ? funds.map((f) => ({
       ...f,
-      dayChange: f.dayChange ?? Math.round((Math.random() - 0.5) * 5 * 100) / 100,
-      dayChangePct: f.dayChangePct ?? Math.round((Math.random() - 0.5) * 3 * 100) / 100,
-      ytdReturn: f.ytdReturn ?? Math.round((Math.random() * 30 - 5) * 100) / 100,
-      oneYearReturn: f.oneYearReturn ?? f.return ?? Math.round((Math.random() * 40 - 5) * 100) / 100,
+      dayChange: f.dayChange ?? null,
+      dayChangePct: f.dayChangePct ?? null,
+      ytdReturn: f.ytdReturn ?? null,
+      oneYearReturn: f.oneYearReturn ?? f.return ?? null,
     })) : [];
     res.json(enriched);
   } catch (err) {
@@ -1885,24 +1825,7 @@ app.get("/api/mutual-funds/:symbol", async (req, res) => {
 
 // ============ DEBENTURE/BOND DATA ============
 function generateBondHistory(faceValue, couponRate, days) {
-  const history = [];
-  let currentPrice = faceValue * (0.95 + Math.random() * 0.1);
-  const now = new Date();
-  for (let i = days; i >= 0; i--) {
-    const date = new Date(now);
-    date.setDate(date.getDate() - i);
-    if (date.getDay() === 0 || date.getDay() === 6) continue;
-    const change = (Math.random() - 0.5) * 5;
-    currentPrice = Math.max(currentPrice + change, faceValue * 0.85);
-    currentPrice = Math.min(currentPrice, faceValue * 1.15);
-    history.push({
-      date: date.toISOString().split("T")[0],
-      price: Math.round(currentPrice * 100) / 100,
-      yield: Math.round(((couponRate * faceValue / currentPrice) * 100) * 100) / 100,
-      volume: Math.floor(Math.random() * 10000) + 500,
-    });
-  }
-  return history;
+  return [];
 }
 
 app.get("/api/debentures", async (req, res) => {
@@ -1910,15 +1833,15 @@ app.get("/api/debentures", async (req, res) => {
     const debentures = await dataProvider.getDebentures();
     const enriched = Array.isArray(debentures) ? debentures.map((d) => {
       const fv = d.faceValue || 1000;
-      const cp = d.currentPrice || fv * (0.95 + Math.random() * 0.1);
+      const cp = d.currentPrice ?? null;
       const cr = d.couponRate || d.coupon || 8.0;
-      const ytm = ((cr * fv / cp) * 100);
+      const ytm = cp ? ((cr * fv / cp) * 100) : null;
       return {
         ...d,
-        currentPrice: Math.round(cp * 100) / 100,
-        yieldToMaturity: d.ytm || Math.round(ytm * 100) / 100,
-        dayChange: d.dayChange ?? Math.round((Math.random() - 0.5) * 10 * 100) / 100,
-        volume: d.volume ?? Math.floor(Math.random() * 50000) + 1000,
+        currentPrice: cp,
+        yieldToMaturity: d.ytm || (ytm ? Math.round(ytm * 100) / 100 : null),
+        dayChange: d.dayChange ?? null,
+        volume: d.volume ?? null,
       };
     }) : [];
     res.json(enriched);
@@ -1991,75 +1914,49 @@ function calculateFundamentals(symbol) {
   const latest = records[records.length - 1];
   const close = parseFloat(latest.close) || 0;
   const category = CATEGORY_MAP[symbol] || "Other";
-  const hash = symbol.split("").reduce((a, c) => a + c.charCodeAt(0), 0);
   const companyName = NAME_MAP[symbol] || symbol;
   const group = GROUP_MAP[symbol] || "Z";
   const shortCategory = SHORT_CATEGORY_MAP[category] || category;
-  const sectorMultiples = {
-    "Commercial Bank": { pe: [8, 15], pb: [1.0, 2.5], eps: [15, 45], roe: [12, 22], dividendYield: [2, 8] },
-    "Development Bank": { pe: [10, 18], pb: [1.2, 3.0], eps: [20, 50], roe: [10, 18], dividendYield: [1, 6] },
-    "Finance": { pe: [8, 14], pb: [0.8, 2.0], eps: [25, 60], roe: [8, 15], dividendYield: [0, 5] },
-    "Hydropower": { pe: [15, 35], pb: [1.5, 4.0], eps: [5, 25], roe: [8, 20], dividendYield: [0, 4] },
-    "Life Insurance": { pe: [10, 20], pb: [1.5, 3.5], eps: [30, 70], roe: [15, 25], dividendYield: [2, 7] },
-    "Tourism/Hospitality": { pe: [12, 25], pb: [1.0, 3.0], eps: [10, 40], roe: [5, 15], dividendYield: [0, 5] },
-    "Investment": { pe: [10, 20], pb: [0.8, 2.5], eps: [15, 45], roe: [6, 14], dividendYield: [1, 5] },
-    "Other": { pe: [8, 18], pb: [1.0, 2.5], eps: [10, 35], roe: [8, 16], dividendYield: [1, 5] },
-  };
-  const m = sectorMultiples[category] || sectorMultiples["Other"];
-  const eps = m.eps[0] + ((hash * 7) % (m.eps[1] - m.eps[0]));
-  const pe = close > 0 ? Math.round((close / eps) * 100) / 100 : 0;
-  const bookValue = close / (m.pb[0] + ((hash * 3) % (m.pb[1] - m.pb[0]) * 10) / 10);
-  const pb = Math.round((close / bookValue) * 100) / 100;
-  const roe = m.roe[0] + ((hash * 11) % (m.roe[1] - m.roe[0]));
-  const dividendYield = m.dividendYield[0] + ((hash * 5) % (m.dividendYield[1] - m.dividendYield[0]));
-  const debtToEquity = Math.round((0.5 + ((hash * 13) % 200) / 100) * 100) / 100;
-  const marketCap = close * (5000000 + ((hash * 17) % 50000000));
-  const fiftyTwoWeekHigh = Math.round(close * (1.1 + ((hash * 19) % 30) / 100) * 100) / 100;
-  const fiftyTwoWeekLow = Math.round(close * (0.6 + ((hash * 23) % 30) / 100) * 100) / 100;
-  const units = 5000000 + ((hash * 17) % 50000000);
-  const floatPct = 20 + ((hash * 47) % 60);
-  const floatUnits = Math.round(units * floatPct / 100);
-  const bonusPct = [3, 5, 7, 8, 10, 14, 15][(hash * 19) % 7];
-  const cashPct = [0.26, 0.35, 0.37, 0.42, 0.53, 0.74, 0.75, 8, 12.79][(hash * 23) % 9];
-  const bookCloseDates = ["2026-04-16", "2026-04-08", "2026-02-11", "2026-02-05", "2026-01-05", "2026-01-04", "2026-01-01"];
-  const bookClose = bookCloseDates[(hash * 29) % bookCloseDates.length];
-  const marketCapVal = close * units;
-  const floatCap = close * floatUnits;
+
+  const allCloses = records.map((r) => parseFloat(r.close) || 0).filter((c) => c > 0);
+  const fiftyTwoWeekHigh = allCloses.length > 0 ? Math.max(...allCloses) : null;
+  const fiftyTwoWeekLow = allCloses.length > 0 ? Math.min(...allCloses) : null;
+
   return {
     symbol,
     companyName,
     category,
     shortCategory,
     group,
-    marketCap: marketCapVal,
-    marketCapFormatted: marketCapVal > 1e9 ? `${(marketCapVal / 1e9).toFixed(2)}Ar` : `${(marketCapVal / 1e7).toFixed(2)}Cr`,
-    units,
-    unitsFormatted: units > 1e7 ? `${(units / 1e7).toFixed(2)}Cr` : `${(units / 1e5).toFixed(2)}L`,
-    float: floatUnits,
-    floatFormatted: floatUnits > 1e7 ? `${(floatUnits / 1e7).toFixed(2)}Cr` : `${(floatUnits / 1e5).toFixed(2)}L`,
-    floatCap,
-    floatCapFormatted: floatCap > 1e9 ? `${(floatCap / 1e9).toFixed(2)}Ar` : `${(floatCap / 1e7).toFixed(2)}Cr`,
-    pe,
-    pb: Math.round(pb * 100) / 100,
-    eps: Math.round(eps * 100) / 100,
-    roe: Math.round(roe * 100) / 100,
-    roce: Math.round((roe + 2 + ((hash * 29) % 5)) * 100) / 100,
-    dividendYield: Math.round(dividendYield * 100) / 100,
-    debtToEquity,
-    interestCoverage: Math.round((3 + ((hash * 31) % 10)) * 100) / 100,
-    currentRatio: Math.round((1.2 + ((hash * 37) % 15) / 10) * 100) / 100,
-    quickRatio: Math.round((0.8 + ((hash * 41) % 10) / 10) * 100) / 100,
-    bookValue: Math.round(bookValue * 100) / 100,
+    latestClose: close,
+    change: Math.round(parseFloat(latest.per_change) || 0) / 100,
+    changePct: parseFloat(latest.per_change) || 0,
+    latestDate: latest.published_date,
     fiftyTwoWeekHigh,
     fiftyTwoWeekLow,
-    beta: Math.round((0.6 + ((hash * 43) % 10) / 10) * 100) / 100,
-    latestClose: close,
-    change: Math.round(parseFloat(latest.per_change) || ((hash * 3) % 30 - 15) * 0.1) * 100 / 100,
-    changePct: parseFloat(latest.per_change) || Math.round(((hash * 3) % 30 - 15) * 0.1 * 100) / 100,
-    bonusPct,
-    cashDividendPct: cashPct,
-    bookClose,
-    latestDate: latest.published_date,
+    pe: null,
+    pb: null,
+    eps: null,
+    roe: null,
+    roce: null,
+    dividendYield: null,
+    debtToEquity: null,
+    interestCoverage: null,
+    currentRatio: null,
+    quickRatio: null,
+    bookValue: null,
+    marketCap: null,
+    marketCapFormatted: null,
+    units: null,
+    unitsFormatted: null,
+    float: null,
+    floatFormatted: null,
+    floatCap: null,
+    floatCapFormatted: null,
+    beta: null,
+    bonusPct: null,
+    cashDividendPct: null,
+    bookClose: null,
   };
 }
 
@@ -2133,15 +2030,16 @@ function broadcastPriceUpdate() {
       .map(({ symbol, records }) => {
         const latest = records[records.length - 1];
         const close = parseFloat(latest.close) || 0;
-        const jitter = (Math.random() - 0.5) * close * 0.005;
+        const prevClose = records.length > 1 ? parseFloat(records[records.length - 2].close) || close : close;
+        const change = close - prevClose;
         return {
           symbol,
           lastClose: close,
-          price: Math.round((close + jitter) * 100) / 100,
-          change: Math.round(jitter * 100) / 100,
-          changePct: close > 0 ? Math.round((jitter / close) * 10000) / 100 : 0,
+          price: close,
+          change: Math.round(change * 100) / 100,
+          changePct: prevClose > 0 ? Math.round(((close - prevClose) / prevClose) * 10000) / 100 : 0,
           volume: parseInt(latest.traded_quantity) || 0,
-          time: new Date().toISOString(),
+          time: latest.published_date || new Date().toISOString(),
         };
       });
     broadcast({ type: "price_update", data: sample });
@@ -2468,7 +2366,25 @@ app.get("/api/breadth", (req, res) => {
     }
 
     const latestDay = breadthHistory[breadthHistory.length - 1] || {};
-    const vix = Math.round((15 + Math.random() * 15) * 100) / 100;
+
+    // Calculate real volatility from recent market returns
+    const allData = getAllCompanyData();
+    const recentReturns = [];
+    for (const { records } of allData) {
+      if (records.length < 5) continue;
+      const closes = records.slice(-5).map((r) => parseFloat(r.close) || 0).filter((c) => c > 0);
+      if (closes.length >= 2) {
+        for (let i = 1; i < closes.length; i++) {
+          recentReturns.push((closes[i] - closes[i - 1]) / closes[i - 1]);
+        }
+      }
+    }
+    let vix = 0;
+    if (recentReturns.length > 1) {
+      const mean = recentReturns.reduce((s, r) => s + r, 0) / recentReturns.length;
+      const variance = recentReturns.reduce((s, r) => s + (r - mean) ** 2, 0) / recentReturns.length;
+      vix = Math.round(Math.sqrt(variance) * 100 * 100) / 100;
+    }
 
     res.json({
       current: {
@@ -2836,9 +2752,9 @@ function getPaperPrice(symbol) {
   const csvData = readCompanyCSV(symbol);
   if (csvData && csvData.length > 0) {
     const last = csvData[csvData.length - 1];
-    return parseFloat(last.Close) || parseFloat(last.close) || parseFloat(last.LTP) || parseFloat(last.ltp) || 100;
+    return parseFloat(last.Close) || parseFloat(last.close) || parseFloat(last.LTP) || parseFloat(last.ltp) || null;
   }
-  return Math.round((Math.random() * 800 + 100) * 100) / 100;
+  return null;
 }
 
 app.post("/api/paper-trading/order", async (req, res) => {
@@ -2848,6 +2764,9 @@ app.post("/api/paper-trading/order", async (req, res) => {
   }
   const sym = symbol.toUpperCase();
   const price = getPaperPrice(sym);
+  if (price === null || price <= 0) {
+    return res.status(400).json({ error: "Price data unavailable for " + sym + ". Cannot execute trade." });
+  }
   const totalCost = price * quantity;
 
   if (!supabase) return res.status(500).json({ error: "Database not available" });
@@ -2940,35 +2859,16 @@ app.get("/api/order-book/:symbol", (req, res) => {
   if (!csvData || csvData.length === 0) return res.status(404).json({ error: "Symbol not found" });
 
   const last = csvData[csvData.length - 1];
-  const lastPrice = parseFloat(last.Close) || parseFloat(last.close) || parseFloat(last.LTP) || parseFloat(last.ltp) || 200;
-  const spread = Math.round(lastPrice * 0.002 * 100) / 100;
-  const midPrice = lastPrice;
-
-  const bids = [];
-  const asks = [];
-  for (let i = 0; i < 15; i++) {
-    const bidPrice = Math.round((midPrice - spread / 2 - i * (lastPrice * 0.001)) * 100) / 100;
-    const askPrice = Math.round((midPrice + spread / 2 + i * (lastPrice * 0.001)) * 100) / 100;
-    const bidVol = Math.round(Math.random() * 5000 + 500);
-    const askVol = Math.round(Math.random() * 5000 + 500);
-    bids.push({ price: bidPrice, volume: bidVol, total: bids.reduce((s, b) => s + b.volume, 0) + bidVol });
-    asks.push({ price: askPrice, volume: askVol, total: asks.reduce((s, a) => s + a.volume, 0) + askVol });
-  }
-
-  const totalBidVol = bids.reduce((s, b) => s + b.volume, 0);
-  const totalAskVol = asks.reduce((s, a) => s + a.volume, 0);
-  const spreadPct = ((asks[0].price - bids[0].price) / midPrice * 100).toFixed(3);
+  const lastPrice = parseFloat(last.Close) || parseFloat(last.close) || parseFloat(last.LTP) || parseFloat(last.ltp) || null;
 
   res.json({
     symbol: sym,
     lastPrice,
-    spread: { absolute: Math.round((asks[0].price - bids[0].price) * 100) / 100, percent: parseFloat(spreadPct) },
-    bids, asks,
-    summary: {
-      totalBidVol, totalAskVol,
-      bidAskRatio: parseFloat((totalBidVol / totalAskVol).toFixed(2)),
-      imbalance: parseFloat(((totalBidVol - totalAskVol) / (totalBidVol + totalAskVol) * 100).toFixed(1)),
-    },
+    spread: { absolute: 0, percent: 0 },
+    bids: [],
+    asks: [],
+    summary: { totalBidVol: 0, totalAskVol: 0, bidAskRatio: 0, imbalance: 0 },
+    message: "Real-time order book data is not available. NEPSE does not publish order book data publicly.",
   });
 });
 
@@ -3178,56 +3078,8 @@ app.delete("/api/portfolio/holdings/:symbol", async (req, res) => {
 async function seedCommunityData() {
   if (!supabase) return;
   const { count } = await supabase.from("community_posts").select("*", { count: "exact", head: true });
-  if (count > 0) return; // already seeded
-
-  const symbols = Object.keys(CATEGORY_MAP).slice(0, 20);
-  const sampleAuthors = ["InvestorKathmandu", "NepalTrader", "MarketWatcher", "StockGuruNP", "BullishNEPSE", "ValueHunter", "TechAnalyst_NP", "DividendKing"];
-  const sampleTitles = [
-    "What's your outlook on this stock?",
-    "Technical analysis shows interesting pattern",
-    "Quarterly results discussion",
-    "Is this a good entry point?",
-    "Long-term growth potential analysis",
-    "Dividend yield looks attractive",
-    "Breaking support soon?",
-    "Institutional buying spotted",
-  ];
-  const sampleContents = [
-    "The stock has been consolidating near support. RSI is showing oversold conditions. Looking for a bounce here.",
-    "Volume has been picking up in the last few sessions. Could be accumulation phase.",
-    "Fundamentals look strong with consistent EPS growth. P/E is reasonable compared to sector peers.",
-    "MACD just crossed above signal line. Bullish crossover confirmed.",
-    "Breaking below the 200-day MA would be concerning. Watching closely.",
-    "Dividend yield at 4.5% is quite attractive for income investors.",
-    "Management recently increased their stake. Confidence signal.",
-    "The sector rotation data suggests banking stocks may outperform next quarter.",
-  ];
-  const rows = [];
-  for (const symbol of symbols) {
-    const numPosts = 3 + Math.floor(Math.random() * 8);
-    for (let i = 0; i < numPosts; i++) {
-      const daysAgo = Math.floor(Math.random() * 60);
-      const date = new Date();
-      date.setDate(date.getDate() - daysAgo);
-      date.setHours(Math.floor(Math.random() * 18) + 6);
-      rows.push({
-        symbol,
-        author: sampleAuthors[Math.floor(Math.random() * sampleAuthors.length)],
-        title: sampleTitles[Math.floor(Math.random() * sampleTitles.length)],
-        content: sampleContents[Math.floor(Math.random() * sampleContents.length)],
-        parent_id: null,
-        votes: Math.floor(Math.random() * 50) - 5,
-        replies: Math.floor(Math.random() * 12),
-        created_at: date.toISOString(),
-        updated_at: date.toISOString(),
-      });
-    }
-  }
-  // Insert in batches of 50
-  for (let i = 0; i < rows.length; i += 50) {
-    await supabase.from("community_posts").insert(rows.slice(i, i + 50));
-  }
-  console.log(`Seeded ${rows.length} community posts`);
+  if (count > 0) return;
+  console.log("Community posts table is empty. No synthetic data seeded — use the app to create real posts.");
 }
 seedCommunityData();
 
@@ -3336,63 +3188,18 @@ function generateAnalystRatings(symbol) {
 }
 
 app.get("/api/analyst-ratings", (req, res) => {
-  const symbols = Object.keys(CATEGORY_MAP);
-  const results = symbols.map((s) => generateAnalystRatings(s));
-  const summary = {
-    totalCompanies: results.length,
-    avgBuyPct: Math.round(results.reduce((s, r) => s + (r.buyCount / r.totalAnalysts) * 100, 0) / results.length),
-    avgHoldPct: Math.round(results.reduce((s, r) => s + (r.holdCount / r.totalAnalysts) * 100, 0) / results.length),
-    avgSellPct: Math.round(results.reduce((s, r) => s + (r.sellCount / r.totalAnalysts) * 100, 0) / results.length),
-  };
-  res.json({ ratings: results, summary });
+  res.json({ ratings: [], summary: { totalCompanies: 0, avgBuyPct: 0, avgHoldPct: 0, avgSellPct: 0 } });
 });
 
 app.get("/api/analyst-ratings/:symbol", (req, res) => {
   const symbol = req.params.symbol.toUpperCase();
   if (!CATEGORY_MAP[symbol]) return res.status(404).json({ error: "Company not found" });
-  res.json(generateAnalystRatings(symbol));
+  res.json({ symbol, ratings: [], summary: { totalAnalysts: 0, buyCount: 0, holdCount: 0, sellCount: 0 } });
 });
 
 // --- Social Sentiment Tracker (Twitter/Reddit) ---
 function generateSocialSentiment(symbol) {
-  const hash = symbol.split("").reduce((a, c) => a + c.charCodeAt(0), 0);
-  const platforms = ["Twitter", "Reddit", "StockTwits", "NEPSE Forum"];
-  const sentiments = ["very_bullish", "bullish", "neutral", "bearish", "very_bearish"];
-  const overallIdx = hash % 5;
-  const overall = sentiments[overallIdx];
-  const baseScore = overallIdx <= 1 ? 65 + (hash % 25) : overallIdx === 2 ? 45 + (hash % 15) : 15 + (hash % 25);
-
-  const platformData = platforms.map((p, i) => {
-    const sentiment = sentiments[(hash + i * 2) % 5];
-    const mentions = 20 + ((hash + i * 13) % 200);
-    const positivePct = sentiment === "very_bullish" ? 75 + (hash % 20) : sentiment === "bullish" ? 55 + (hash % 15) : sentiment === "neutral" ? 40 + (hash % 15) : sentiment === "bearish" ? 20 + (hash % 20) : 5 + (hash % 15);
-    return { platform: p, sentiment, mentions, positivePct, negativePct: 100 - positivePct };
-  });
-
-  const trendingTopics = [];
-  const topics = ["earnings", "dividend", "technical", "breakout", "support", "resistance", "volume", "institutional", "growth", "valuation"];
-  for (let i = 0; i < 5; i++) {
-    const topicIdx = (hash + i * 3) % topics.length;
-    trendingTopics.push({
-      topic: topics[topicIdx],
-      count: 5 + ((hash + i * 7) % 100),
-      sentiment: sentiments[(hash + i) % 5],
-    });
-  }
-
-  const dailySentiment = [];
-  for (let i = 29; i >= 0; i--) {
-    const d = new Date();
-    d.setDate(d.getDate() - i);
-    const dayHash = (hash + i * 17) % 100;
-    dailySentiment.push({
-      date: d.toISOString().split("T")[0],
-      score: Math.max(0, Math.min(100, baseScore + (dayHash % 30) - 15)),
-      mentions: 5 + (dayHash % 50),
-    });
-  }
-
-  return { symbol, overall, score: baseScore, platforms: platformData, trendingTopics, dailySentiment };
+  return { symbol, overall: "neutral", score: null, platforms: [], trendingTopics: [], dailySentiment: [] };
 }
 
 app.get("/api/social-sentiment", (req, res) => {
@@ -3567,181 +3374,29 @@ app.delete("/api/watchlist/:id", async (req, res) => {
 
 // --- Tax Report: Capital Gains/Losses ---
 app.get("/api/tax-report", (req, res) => {
-  try {
-    const { symbol, fy } = req.query;
-    const allData = getAllCompanyData();
-    const report = [];
-
-    for (const { symbol: sym, records } of allData) {
-      if (symbol && sym !== symbol.toUpperCase()) continue;
-      const data = parseRecords(records);
-      if (data.length < 2) continue;
-
-      const category = CATEGORY_MAP[sym] || "Other";
-      const latest = data[data.length - 1];
-      const prev = data[data.length - 2];
-      const currentPrice = latest.close;
-      const prevPrice = prev.close;
-
-      // Simulate realistic buy/sell transactions for the fiscal year
-      const hash = sym.split("").reduce((a, c) => a + c.charCodeAt(0), 0);
-      const transactions = [];
-      const fyStart = fy ? `${fy}-07-16` : "2025-07-16";
-      const fyEnd = fy ? `${parseInt(fy) + 1}-07-15` : "2026-07-15";
-
-      // Generate 2-6 transactions per company
-      const numTransactions = 2 + (hash % 5);
-      for (let i = 0; i < numTransactions; i++) {
-        const buyDay = (hash + i * 13) % 300 + 1;
-        const sellDay = buyDay + 30 + ((hash + i * 7) % 180);
-        const buyDate = new Date(fyStart);
-        buyDate.setDate(buyDate.getDate() + buyDay);
-        const sellDate = new Date(fyStart);
-        sellDate.setDate(sellDate.getDate() + Math.min(sellDay, 360));
-
-        if (sellDate > new Date()) continue;
-
-        const priceIdx = buyDay % data.length;
-        const buyPrice = data[Math.min(priceIdx, data.length - 1)].close;
-        const sellPriceIdx = Math.min(sellDay, data.length - 1);
-        const sellPrice = data[sellPriceIdx].close;
-        const quantity = 10 + ((hash + i * 11) % 90) * 10;
-        const pnl = Math.round((sellPrice - buyPrice) * quantity * 100) / 100;
-        const holdingDays = sellDay - buyDay;
-
-        transactions.push({
-          symbol: sym,
-          category,
-          buyDate: buyDate.toISOString().split("T")[0],
-          sellDate: sellDate.toISOString().split("T")[0],
-          buyPrice: Math.round(buyPrice * 100) / 100,
-          sellPrice: Math.round(sellPrice * 100) / 100,
-          quantity,
-          totalBuyValue: Math.round(buyPrice * quantity * 100) / 100,
-          totalSellValue: Math.round(sellPrice * quantity * 100) / 100,
-          pnl,
-          pnlPct: Math.round(((sellPrice - buyPrice) / buyPrice) * 10000) / 100,
-          holdingPeriod: holdingDays <= 365 ? "short_term" : "long_term",
-          holdingDays,
-        });
-      }
-
-      report.push(...transactions);
-    }
-
-    report.sort((a, b) => a.sellDate.localeCompare(b.sellDate));
-
-    const totalGains = report.filter((t) => t.pnl > 0).reduce((s, t) => s + t.pnl, 0);
-    const totalLosses = report.filter((t) => t.pnl < 0).reduce((s, t) => s + Math.abs(t.pnl), 0);
-    const netPnL = report.reduce((s, t) => s + t.pnl, 0);
-    const shortTermGains = report.filter((t) => t.holdingPeriod === "short_term" && t.pnl > 0).reduce((s, t) => s + t.pnl, 0);
-    const longTermGains = report.filter((t) => t.holdingPeriod === "long_term" && t.pnl > 0).reduce((s, t) => s + t.pnl, 0);
-    const shortTermLosses = report.filter((t) => t.holdingPeriod === "short_term" && t.pnl < 0).reduce((s, t) => s + Math.abs(t.pnl), 0);
-    const longTermLosses = report.filter((t) => t.holdingPeriod === "long_term" && t.pnl < 0).reduce((s, t) => s + Math.abs(t.pnl), 0);
-
-    res.json({
-      fiscalYear: fy || "2025/26",
-      generatedAt: new Date().toISOString(),
-      summary: {
-        totalTransactions: report.length,
-        totalGains: Math.round(totalGains * 100) / 100,
-        totalLosses: Math.round(totalLosses * 100) / 100,
-        netPnL: Math.round(netPnL * 100) / 100,
-        shortTermGains: Math.round(shortTermGains * 100) / 100,
-        longTermGains: Math.round(longTermGains * 100) / 100,
-        shortTermLosses: Math.round(shortTermLosses * 100) / 100,
-        longTermLosses: Math.round(longTermLosses * 100) / 100,
-        taxLiability: Math.round(Math.max(0, netPnL * 0.05) * 100) / 100,
-      },
-      transactions: report,
-    });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+  const { fy } = req.query;
+  res.json({
+    fiscalYear: fy || "2025/26",
+    generatedAt: new Date().toISOString(),
+    summary: {
+      totalTransactions: 0,
+      totalGains: 0,
+      totalLosses: 0,
+      netPnL: 0,
+      shortTermGains: 0,
+      longTermGains: 0,
+      shortTermLosses: 0,
+      longTermLosses: 0,
+      taxLiability: 0,
+    },
+    transactions: [],
+    message: "No transaction data available. Connect your portfolio to generate tax reports.",
+  });
 });
 
 // --- Dividend Calendar ---
 app.get("/api/dividend-calendar", (req, res) => {
-  try {
-    const { upcoming } = req.query;
-    const today = new Date().toISOString().split("T")[0];
-    const calendar = [];
-
-    const allData = getAllCompanyData();
-    for (const { symbol, records } of allData) {
-      if (records.length === 0) continue;
-      const category = CATEGORY_MAP[symbol] || "Other";
-      const latest = records[records.length - 1];
-      const close = parseFloat(latest.close) || 100;
-      const hash = symbol.split("").reduce((a, c) => a + c.charCodeAt(0), 0);
-
-      // Generate 1-3 dividend entries per company for the year
-      const dividendTypes = ["cash", "bonus", "rights"];
-      const numDividends = 1 + (hash % 3);
-
-      for (let i = 0; i < numDividends; i++) {
-        const month = (hash + i * 5) % 12;
-        const day = (hash + i * 3) % 28 + 1;
-        const year = month < 6 ? 2026 : 2025;
-        const exDate = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-        const recordDate = new Date(exDate);
-        recordDate.setDate(recordDate.getDate() + 2);
-        const paymentDate = new Date(exDate);
-        paymentDate.setDate(paymentDate.getDate() + 14);
-
-        const type = dividendTypes[i % 3];
-        let amount;
-        if (type === "cash") {
-          amount = Math.round((2 + (hash + i * 7) % 20) * 100) / 100;
-        } else if (type === "bonus") {
-          amount = Math.round((5 + (hash + i * 11) % 25) * 100) / 100;
-        } else {
-          amount = Math.round((2 + (hash + i * 13) % 15) * 100) / 100;
-        }
-
-        const dividendYield = Math.round((amount / close) * 10000) / 100;
-
-        calendar.push({
-          symbol,
-          companyName: symbol,
-          sector: category,
-          type,
-          amount,
-          exDate,
-          recordDate: recordDate.toISOString().split("T")[0],
-          paymentDate: paymentDate.toISOString().split("T")[0],
-          currentPrice: close,
-          dividendYield,
-          isUpcoming: exDate >= today,
-          status: exDate >= today ? "upcoming" : "completed",
-        });
-      }
-    }
-
-    calendar.sort((a, b) => a.exDate.localeCompare(b.exDate));
-
-    let filtered = calendar;
-    if (upcoming === "true") {
-      filtered = calendar.filter((e) => e.exDate >= today);
-    }
-
-    const totalCashDividends = calendar.filter((d) => d.type === "cash").reduce((s, d) => s + d.amount, 0);
-    const upcomingCount = calendar.filter((d) => d.exDate >= today).length;
-
-    res.json({
-      calendar: filtered,
-      summary: {
-        totalEntries: filtered.length,
-        upcomingCount,
-        totalCashDividends: Math.round(totalCashDividends * 100) / 100,
-        avgDividendYield: filtered.length > 0
-          ? Math.round(filtered.reduce((s, d) => s + d.dividendYield, 0) / filtered.length * 100) / 100
-          : 0,
-      },
-    });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+  res.json({ calendar: [], summary: { totalEntries: 0, upcomingCount: 0, totalCashDividends: 0, avgDividendYield: 0 }, message: "No dividend data available. Dividend data will be populated when scraped." });
 });
 
 // --- Portfolio Transactions (for tax report, Supabase-backed) ---
@@ -4124,20 +3779,36 @@ app.get("/api/brokers/top-trades", (req, res) => {
     brokers.sort((a, b) => sortBy === "volume" ? b.volume - a.volume : b.turnover - a.turnover);
     res.json({ date: floorData.date, source: "floorsheet", sortBy, brokers });
   } else {
-    const data = generateBrokerTopTrades();
-    data.brokers.sort((a, b) => sortBy === "volume" ? b.volume - a.volume : b.turnover - a.turnover);
-    res.json({ ...data, source: "generated", sortBy });
+    res.json({ date: null, source: "empty", sortBy, brokers: [], message: "No floorsheet data available. Run the scraper first." });
   }
 });
 
 app.get("/api/brokers/:brokerNo", (req, res) => {
   const brokerNo = parseInt(req.params.brokerNo);
   if (brokerNo < 1 || brokerNo > 91) return res.status(400).json({ error: "Broker number must be 1-91" });
-  const data = generateBrokerData();
-  const broker = data.brokers.find((b) => b.brokerNo === brokerNo);
-  if (!broker) return res.status(404).json({ error: "Broker not found" });
-  const history = generateBrokerHistory(`BRK${brokerNo}`, 30);
-  res.json({ broker, history, date: data.date });
+  const floorData = readFloorsheet();
+  if (!floorData.records || floorData.records.length === 0) {
+    return res.json({ broker: { brokerNo, name: `Broker ${brokerNo}`, turnover: 0, volume: 0, netBuy: 0, netSell: 0, buyCount: 0, sellCount: 0, stocks: [] }, history: [], date: null, source: "empty", message: "No floorsheet data available." });
+  }
+  const brokerMap = {};
+  for (const r of floorData.records) {
+    if (r.buyerBroker === brokerNo) {
+      if (!brokerMap[r.symbol]) brokerMap[r.symbol] = { symbol: r.symbol, buyQty: 0, sellQty: 0, buyAmt: 0, sellAmt: 0 };
+      brokerMap[r.symbol].buyQty += r.quantity;
+      brokerMap[r.symbol].buyAmt += r.amount;
+    }
+    if (r.sellerBroker === brokerNo) {
+      if (!brokerMap[r.symbol]) brokerMap[r.symbol] = { symbol: r.symbol, buyQty: 0, sellQty: 0, buyAmt: 0, sellAmt: 0 };
+      brokerMap[r.symbol].sellQty += r.quantity;
+      brokerMap[r.symbol].sellAmt += r.amount;
+    }
+  }
+  const stocks = Object.values(brokerMap).sort((a, b) => (b.buyAmt + b.sellAmt) - (a.buyAmt + a.sellAmt));
+  const turnover = stocks.reduce((s, st) => s + st.buyAmt + st.sellAmt, 0);
+  const volume = stocks.reduce((s, st) => s + st.buyQty + st.sellQty, 0);
+  const netBuy = stocks.reduce((s, st) => s + st.buyAmt, 0);
+  const netSell = stocks.reduce((s, st) => s + st.sellAmt, 0);
+  res.json({ broker: { brokerNo, name: `Broker ${brokerNo}`, turnover, volume, netBuy, netSell, buyCount: stocks.filter(s => s.buyQty > 0).length, sellCount: stocks.filter(s => s.sellQty > 0).length, stocks }, history: [], date: floorData.date, source: "floorsheet" });
 });
 
 // ═══════════════════════════════════════════════════════════
@@ -4266,8 +3937,7 @@ app.get("/api/brokers/:brokerNo/holdings", (req, res) => {
     holdings.sort((a, b) => Math.abs(b.buyAmt + b.sellAmt) - Math.abs(a.buyAmt + a.sellAmt));
     res.json({ brokerNo, date: floorData.date, source: "floorsheet", holdings });
   } else {
-    const data = generateBrokerHoldings(brokerNo);
-    res.json({ ...data, source: "generated" });
+    res.json({ brokerNo, date: null, source: "empty", holdings: [], message: "No floorsheet data available." });
   }
 });
 
@@ -4306,8 +3976,7 @@ app.get("/api/brokers/holdings/top-stocks", (req, res) => {
     stocks.sort((a, b) => (b.totalBuyAmt + b.totalSellAmt) - (a.totalBuyAmt + a.totalSellAmt));
     res.json({ date: floorData.date, source: "floorsheet", stocks: stocks.slice(0, 30) });
   } else {
-    const data = generateTopStocksByBroker();
-    res.json({ ...data, source: "generated" });
+    res.json({ date: null, source: "empty", stocks: [], message: "No floorsheet data available." });
   }
 });
 
@@ -4356,16 +4025,7 @@ function generateBrokerTopTrades() {
 
 app.get("/api/brokers/history/overview", (req, res) => {
   const days = parseInt(req.query.days) || 30;
-  const history = generateBrokerHistory("MARKET", days);
-  const topBuyers = {};
-  const topSellers = {};
-  for (const h of history) {
-    topBuyers[h.topBuyer.brokerNo] = (topBuyers[h.topBuyer.brokerNo] || 0) + 1;
-    topSellers[h.topSeller.brokerNo] = (topSellers[h.topSeller.brokerNo] || 0) + 1;
-  }
-  const topBuyerList = Object.entries(topBuyers).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([no, count]) => ({ brokerNo: parseInt(no), daysOnTop: count }));
-  const topSellerList = Object.entries(topSellers).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([no, count]) => ({ brokerNo: parseInt(no), daysOnTop: count }));
-  res.json({ history, topBuyers: topBuyerList, topSellers: topSellerList, days });
+  res.json({ history: [], topBuyers: [], topSellers: [], days, message: "Historical broker data requires historical floorsheet data." });
 });
 
 // ============ FLOORSHEET ============
@@ -4496,203 +4156,25 @@ function generateBrokerTrendData(days) {
 app.get("/api/brokers/analysis/trends", (req, res) => {
   const days = Math.min(parseInt(req.query.days) || 30, 90);
   const brokerNos = req.query.brokers ? req.query.brokers.split(",").map(Number).filter(n => n >= 1 && n <= 91) : [];
-  const history = generateBrokerTrendData(days);
-
-  const marketTrend = history.map(h => ({
-    date: h.date,
-    totalBuyAmt: h.totalBuyAmt,
-    totalSellAmt: h.totalSellAmt,
-    totalBuyQty: h.totalBuyQty,
-    totalSellQty: h.totalSellQty,
-    netBuyers: h.netBuyers,
-    netSellers: h.netSellers,
-    turnover: h.turnover,
-    buySellRatio: h.totalSellAmt > 0 ? +(h.totalBuyAmt / h.totalSellAmt).toFixed(2) : 0,
-  }));
-
-  const brokerTrends = {};
-  for (const bNo of brokerNos) {
-    brokerTrends[bNo] = history.map(h => {
-      const b = h.brokerDetail.find(x => x.brokerNo === bNo);
-      return {
-        date: h.date,
-        buyAmt: b ? b.buyAmt : 0,
-        sellAmt: b ? b.sellAmt : 0,
-        turnover: b ? b.turnover : 0,
-        netQty: b ? b.netQty : 0,
-        buyQty: b ? b.buyQty : 0,
-        sellQty: b ? b.sellQty : 0,
-      };
-    });
-  }
-
-  res.json({ marketTrend, brokerTrends, days, brokerNos });
+  res.json({ marketTrend: [], brokerTrends: {}, days, brokerNos, message: "Historical broker trend data requires historical floorsheet data." });
 });
 
 app.get("/api/brokers/analysis/ranking", (req, res) => {
   const days = Math.min(parseInt(req.query.days) || 30, 90);
   const sortBy = req.query.sortBy || "score";
-  const history = generateBrokerTrendData(days);
-  const brokerStats = {};
-
-  for (let i = 1; i <= 91; i++) {
-    brokerStats[i] = {
-      brokerNo: i,
-      totalTurnover: 0,
-      totalBuyAmt: 0,
-      totalSellAmt: 0,
-      totalBuyQty: 0,
-      totalSellQty: 0,
-      daysActive: 0,
-      netBuyDays: 0,
-      netSellDays: 0,
-      maxTurnover: 0,
-      turnoverHistory: [],
-    };
-  }
-
-  for (const h of history) {
-    for (const b of h.brokerDetail) {
-      const s = brokerStats[b.brokerNo];
-      s.totalTurnover += b.turnover;
-      s.totalBuyAmt += b.buyAmt;
-      s.totalSellAmt += b.sellAmt;
-      s.totalBuyQty += b.buyQty;
-      s.totalSellQty += b.sellQty;
-      s.daysActive++;
-      if (b.netQty > 0) s.netBuyDays++;
-      else if (b.netQty < 0) s.netSellDays++;
-      if (b.turnover > s.maxTurnover) s.maxTurnover = b.turnover;
-      s.turnoverHistory.push(b.turnover);
-    }
-  }
-
-  const maxPossibleTurnover = Math.max(...Object.values(brokerStats).map(s => s.totalTurnover));
-  const ranked = Object.values(brokerStats).map(s => {
-    const avgTurnover = s.daysActive > 0 ? s.totalTurnover / s.daysActive : 0;
-    const turnoverConsistency = s.turnoverHistory.length > 1
-      ? 1 - (Math.sqrt(s.turnoverHistory.reduce((sum, v) => sum + Math.pow(v - avgTurnover, 2), 0) / s.turnoverHistory.length) / (avgTurnover || 1))
-      : 0;
-    const buySellBalance = s.totalSellAmt > 0 ? Math.min(s.totalBuyAmt / s.totalSellAmt, 3) / 3 : s.totalBuyAmt > 0 ? 1 : 0.5;
-    const turnoverScore = maxPossibleTurnover > 0 ? s.totalTurnover / maxPossibleTurnover : 0;
-    const consistencyScore = Math.max(0, Math.min(1, turnoverConsistency));
-    const participationScore = s.daysActive / Math.max(1, history.length);
-    const netDirectionScore = s.netBuyDays > s.netSellDays ? 0.5 + (s.netBuyDays / s.daysActive) * 0.5 : 0.5 - (s.netSellDays / s.daysActive) * 0.5;
-    const score = +(turnoverScore * 0.4 + consistencyScore * 0.25 + participationScore * 0.15 + buySellBalance * 0.1 + netDirectionScore * 0.1).toFixed(4);
-
-    return {
-      brokerNo: s.brokerNo,
-      totalTurnover: s.totalTurnover,
-      totalBuyAmt: s.totalBuyAmt,
-      totalSellAmt: s.totalSellAmt,
-      totalBuyQty: s.totalBuyQty,
-      totalSellQty: s.totalSellQty,
-      netQty: s.totalBuyQty - s.totalSellQty,
-      avgTurnover: Math.round(avgTurnover),
-      maxTurnover: s.maxTurnover,
-      daysActive: s.daysActive,
-      netBuyDays: s.netBuyDays,
-      netSellDays: s.netSellDays,
-      netDirection: s.netBuyDays > s.netSellDays ? "net_buy" : s.netSellDays > s.netBuyDays ? "net_sell" : "neutral",
-      score,
-      turnoverScore: +turnoverScore.toFixed(4),
-      consistencyScore: +consistencyScore.toFixed(4),
-      participationScore: +participationScore.toFixed(4),
-      buySellBalance: +buySellBalance.toFixed(4),
-    };
-  });
-
-  const sortMap = {
-    score: (a, b) => b.score - a.score,
-    turnover: (a, b) => b.totalTurnover - a.totalTurnover,
-    consistency: (a, b) => b.consistencyScore - a.consistencyScore,
-    participation: (a, b) => b.participationScore - a.participationScore,
-    netQty: (a, b) => b.netQty - a.netQty,
-  };
-  ranked.sort(sortMap[sortBy] || sortMap.score);
-
-  res.json({ rankings: ranked, days, sortBy, totalBrokers: 91 });
+  res.json({ rankings: [], days, sortBy, totalBrokers: 0, message: "Broker ranking data requires historical floorsheet data." });
 });
 
 app.get("/api/brokers/analysis/compare", (req, res) => {
   const brokerNos = req.query.brokers ? req.query.brokers.split(",").map(Number).filter(n => n >= 1 && n <= 91) : [1, 2, 3];
   const days = Math.min(parseInt(req.query.days) || 30, 90);
-  const history = generateBrokerTrendData(days);
-
-  const comparisons = brokerNos.map(bNo => {
-    const dailyData = history.map(h => {
-      const b = h.brokerDetail.find(x => x.brokerNo === bNo);
-      return {
-        date: h.date,
-        buyAmt: b ? b.buyAmt : 0,
-        sellAmt: b ? b.sellAmt : 0,
-        turnover: b ? b.turnover : 0,
-        netQty: b ? b.netQty : 0,
-      };
-    });
-
-    const totalBuyAmt = dailyData.reduce((s, d) => s + d.buyAmt, 0);
-    const totalSellAmt = dailyData.reduce((s, d) => s + d.sellAmt, 0);
-    const totalTurnover = dailyData.reduce((s, d) => s + d.turnover, 0);
-    const avgTurnover = dailyData.length > 0 ? totalTurnover / dailyData.length : 0;
-    const maxTurnover = Math.max(...dailyData.map(d => d.turnover));
-    const minTurnover = Math.min(...dailyData.map(d => d.turnover));
-    const netBuyDays = dailyData.filter(d => d.netQty > 0).length;
-    const netSellDays = dailyData.filter(d => d.netQty < 0).length;
-
-    return {
-      brokerNo: bNo,
-      summary: {
-        totalBuyAmt, totalSellAmt, totalTurnover,
-        avgTurnover: Math.round(avgTurnover),
-        maxTurnover, minTurnover,
-        netBuyDays, netSellDays,
-        netDirection: netBuyDays > netSellDays ? "net_buy" : netSellDays > netBuyDays ? "net_sell" : "neutral",
-        buyRatio: totalSellAmt > 0 ? +(totalBuyAmt / totalSellAmt).toFixed(2) : 0,
-      },
-      daily: dailyData,
-    };
-  });
-
-  res.json({ comparisons, days, brokerNos });
+  res.json({ comparisons: [], days, brokerNos, message: "Broker comparison data requires historical floorsheet data." });
 });
 
 app.get("/api/brokers/analysis/participation", (req, res) => {
   const days = Math.min(parseInt(req.query.days) || 30, 90);
-  const history = generateBrokerTrendData(days);
-
-  const participation = history.map(h => ({
-    date: h.date,
-    netBuyers: h.netBuyers,
-    netSellers: h.netSellers,
-    unchanged: 91 - h.netBuyers - h.netSellers,
-    totalBuyAmt: h.totalBuyAmt,
-    totalSellAmt: h.totalSellAmt,
-    buySellRatio: h.totalSellAmt > 0 ? +(h.totalBuyAmt / h.totalSellAmt).toFixed(2) : 0,
-    turnover: h.turnover,
-  }));
-
-  const avgNetBuyers = Math.round(participation.reduce((s, p) => s + p.netBuyers, 0) / participation.length);
-  const avgNetSellers = Math.round(participation.reduce((s, p) => s + p.netSellers, 0) / participation.length);
-  const avgBuySellRatio = +(participation.reduce((s, p) => s + p.buySellRatio, 0) / participation.length).toFixed(2);
-  const avgTurnover = Math.round(participation.reduce((s, p) => s + p.turnover, 0) / participation.length);
-  const trendDirection = participation.length >= 2
-    ? (participation[participation.length - 1].buySellRatio > participation[0].buySellRatio ? "bullish" : "bearish")
-    : "neutral";
-
-  const topTurnoverDays = [...participation].sort((a, b) => b.turnover - a.turnover).slice(0, 5);
-  const strongestBuyerDays = [...participation].sort((a, b) => b.buySellRatio - a.buySellRatio).slice(0, 5);
-
-  res.json({
-    participation,
-    summary: {
-      avgNetBuyers, avgNetSellers, avgBuySellRatio, avgTurnover,
-      trendDirection,
-      totalDays: participation.length,
-      bullishDays: participation.filter(p => p.buySellRatio > 1).length,
-      bearishDays: participation.filter(p => p.buySellRatio < 1).length,
-    },
-    topTurnoverDays,
+  res.json({ participation: [], summary: { avgNetBuyers: 0, avgNetSellers: 0, avgBuySellRatio: 0, avgTurnover: 0, trendDirection: "neutral", totalDays: 0, bullishDays: 0, bearishDays: 0 }, topTurnoverDays: [], strongestBuyerDays: [], message: "Participation data requires historical floorsheet data." });
+});
     strongestBuyerDays,
     days,
   });
@@ -4713,45 +4195,14 @@ app.get("/api/scraper-status", (req, res) => {
 // INSTITUTIONAL FLOW ENDPOINT
 // ═══════════════════════════════════════════════════════════
 app.get("/api/institutional-flow", rateLimit, (req, res) => {
-  const days = parseInt(req.query.days) || 30;
-  const flows = [];
-  const baseDate = new Date();
-  for (let i = days - 1; i >= 0; i--) {
-    const date = new Date(baseDate);
-    date.setDate(date.getDate() - i);
-    if (date.getDay() === 0 || date.getDay() === 6) continue;
-    const dateStr = date.toISOString().split("T")[0];
-    const seed = i * 1337;
-    const fii = Math.round(((seed * 31) % 10000 - 4000) * 1000000);
-    const dii = Math.round(((seed * 47) % 12000 - 3000) * 1000000);
-    const retail = Math.round(((seed * 67) % 8000 - 4000) * 1000000);
-    flows.push({ date: dateStr, fii, dii, retail, total: fii + dii + retail });
-  }
-  res.json(flows);
+  res.json([]);
 });
 
 // ═══════════════════════════════════════════════════════════
 // EARNINGS ENDPOINT
 // ═══════════════════════════════════════════════════════════
 app.get("/api/earnings", rateLimit, (req, res) => {
-  const companies = dataProvider.companies();
-  const symbols = companies.slice(0, 20).map(c => c.symbol || c.company);
-  const earnings = symbols.map((sym, i) => {
-    const futureDate = new Date();
-    futureDate.setDate(futureDate.getDate() + (i * 3 + 1));
-    const pastDate = new Date();
-    pastDate.setDate(pastDate.getDate() - (i * 5 + 10));
-    return {
-      symbol: sym,
-      name: sym,
-      date: i < 10 ? futureDate.toISOString().split("T")[0] : pastDate.toISOString().split("T")[0],
-      estimatedEPS: Math.round(Math.random() * 50 + 5),
-      actualEPS: i >= 10 ? Math.round(Math.random() * 50 + 5) : null,
-      previousEPS: Math.round(Math.random() * 40 + 5),
-      sector: companies[i]?.sector || "Other",
-    };
-  });
-  res.json(earnings);
+  res.json([]);
 });
 
 const PORT = process.env.PORT || 4000;

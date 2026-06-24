@@ -69,6 +69,9 @@ export default function MutualFundsPage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {filtered.length === 0 && !loading && (
+            <div className="col-span-full text-center py-12 text-muted-theme">No mutual funds found</div>
+          )}
           {filtered.map((fund) => (
             <Link
               key={fund.symbol}
@@ -81,10 +84,10 @@ export default function MutualFundsPage() {
                   <div className="text-xs text-muted-theme">{fund.symbol} · {fund.category}</div>
                 </div>
                 <div className="text-right">
-                  <div className="text-lg font-bold font-mono text-primary-theme">Rs {fund.nav}</div>
-                  <div className={`text-xs font-bold flex items-center gap-1 justify-end ${fund.dayChange >= 0 ? "text-green-theme" : "text-red-theme"}`}>
-                    {fund.dayChange >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
-                    {fund.dayChange >= 0 ? "+" : ""}{fund.dayChangePct}%
+                  <div className="text-lg font-bold font-mono text-primary-theme">Rs {fund.nav ?? "—"}</div>
+                  <div className={`text-xs font-bold flex items-center gap-1 justify-end ${(fund.dayChange ?? 0) >= 0 ? "text-green-theme" : "text-red-theme"}`}>
+                    {(fund.dayChange ?? 0) >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+                    {(fund.dayChange ?? 0) >= 0 ? "+" : ""}{fund.dayChangePct ?? 0}%
                   </div>
                 </div>
               </div>
@@ -95,14 +98,14 @@ export default function MutualFundsPage() {
                 </div>
                 <div>
                   <div className="text-[10px] text-muted-theme">YTD</div>
-                  <div className={`text-xs font-mono ${fund.ytdReturn >= 0 ? "text-green-theme" : "text-red-theme"}`}>
-                    {fund.ytdReturn >= 0 ? "+" : ""}{fund.ytdReturn}%
+                  <div className={`text-xs font-mono ${(fund.ytdReturn ?? 0) >= 0 ? "text-green-theme" : "text-red-theme"}`}>
+                    {(fund.ytdReturn ?? 0) >= 0 ? "+" : ""}{fund.ytdReturn ?? "—"}%
                   </div>
                 </div>
                 <div>
                   <div className="text-[10px] text-muted-theme">1Y Return</div>
-                  <div className={`text-xs font-mono ${fund.oneYearReturn >= 0 ? "text-green-theme" : "text-red-theme"}`}>
-                    {fund.oneYearReturn >= 0 ? "+" : ""}{fund.oneYearReturn}%
+                  <div className={`text-xs font-mono ${(fund.oneYearReturn ?? 0) >= 0 ? "text-green-theme" : "text-red-theme"}`}>
+                    {(fund.oneYearReturn ?? 0) >= 0 ? "+" : ""}{fund.oneYearReturn ?? "—"}%
                   </div>
                 </div>
               </div>

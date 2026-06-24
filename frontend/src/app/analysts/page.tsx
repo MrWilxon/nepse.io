@@ -106,52 +106,56 @@ export default function AnalystsPage() {
         </div>
       ) : (
         <div className="card-3d overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="table-header">
-                  <th className="text-left px-4 py-3">Company</th>
-                  <th className="text-left px-4 py-3">Consensus</th>
-                  <th className="text-center px-4 py-3">Buy</th>
-                  <th className="text-center px-4 py-3">Hold</th>
-                  <th className="text-center px-4 py-3">Sell</th>
-                  <th className="text-right px-4 py-3">Avg Target</th>
-                  <th className="text-center px-4 py-3">Analysts</th>
-                  <th className="text-center px-4 py-3">Details</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((r) => (
-                  <tr key={r.symbol} className="table-row">
-                    <td className="px-4 py-3">
-                      <a href={`/company/${r.symbol}`} className="font-bold text-primary-theme hover:text-accent-theme transition-colors">
-                        {r.symbol}
-                      </a>
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold border ${getConsensusColor(r.consensus)}`}>
-                        {getConsensusIcon(r.consensus)}
-                        {r.consensus}
-                      </span>
-                    </td>
-                    <td className="text-center px-4 py-3 font-mono text-green-theme">{r.buyCount}</td>
-                    <td className="text-center px-4 py-3 font-mono text-amber-theme">{r.holdCount}</td>
-                    <td className="text-center px-4 py-3 font-mono text-red-theme">{r.sellCount}</td>
-                    <td className="text-right px-4 py-3 font-mono text-primary-theme">Rs {r.avgTarget.toLocaleString()}</td>
-                    <td className="text-center px-4 py-3 font-mono text-muted-theme">{r.totalAnalysts}</td>
-                    <td className="text-center px-4 py-3">
-                      <button
-                        onClick={() => setSelectedSymbol(selectedSymbol === r.symbol ? null : r.symbol)}
-                        className="text-accent-theme hover:text-accent-theme text-xs font-medium"
-                      >
-                        {selectedSymbol === r.symbol ? "Hide" : "View"}
-                      </button>
-                    </td>
+          {filtered.length === 0 ? (
+            <div className="text-center py-12 text-muted-theme">No analyst ratings available</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="table-header">
+                    <th className="text-left px-4 py-3">Company</th>
+                    <th className="text-left px-4 py-3">Consensus</th>
+                    <th className="text-center px-4 py-3">Buy</th>
+                    <th className="text-center px-4 py-3">Hold</th>
+                    <th className="text-center px-4 py-3">Sell</th>
+                    <th className="text-right px-4 py-3">Avg Target</th>
+                    <th className="text-center px-4 py-3">Analysts</th>
+                    <th className="text-center px-4 py-3">Details</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {filtered.map((r) => (
+                    <tr key={r.symbol} className="table-row">
+                      <td className="px-4 py-3">
+                        <a href={`/company/${r.symbol}`} className="font-bold text-primary-theme hover:text-accent-theme transition-colors">
+                          {r.symbol}
+                        </a>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold border ${getConsensusColor(r.consensus)}`}>
+                          {getConsensusIcon(r.consensus)}
+                          {r.consensus}
+                        </span>
+                      </td>
+                      <td className="text-center px-4 py-3 font-mono text-green-theme">{r.buyCount ?? 0}</td>
+                      <td className="text-center px-4 py-3 font-mono text-amber-theme">{r.holdCount ?? 0}</td>
+                      <td className="text-center px-4 py-3 font-mono text-red-theme">{r.sellCount ?? 0}</td>
+                      <td className="text-right px-4 py-3 font-mono text-primary-theme">Rs {(r.avgTarget ?? 0).toLocaleString()}</td>
+                      <td className="text-center px-4 py-3 font-mono text-muted-theme">{r.totalAnalysts ?? 0}</td>
+                      <td className="text-center px-4 py-3">
+                        <button
+                          onClick={() => setSelectedSymbol(selectedSymbol === r.symbol ? null : r.symbol)}
+                          className="text-accent-theme hover:text-accent-theme text-xs font-medium"
+                        >
+                          {selectedSymbol === r.symbol ? "Hide" : "View"}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 
@@ -165,20 +169,26 @@ export default function AnalystsPage() {
 
           {/* Rating Distribution Bar */}
           <div className="flex gap-1 h-6 rounded-lg overflow-hidden">
-            <div className="bg-green-theme flex items-center justify-center text-[10px] font-bold text-primary-theme" style={{ width: `${(detail.buyCount / detail.totalAnalysts) * 100}%` }}>
-              {detail.buyCount}
-            </div>
-            <div className="bg-amber-theme flex items-center justify-center text-[10px] font-bold text-primary-theme" style={{ width: `${(detail.holdCount / detail.totalAnalysts) * 100}%` }}>
-              {detail.holdCount}
-            </div>
-            <div className="bg-red-theme flex items-center justify-center text-[10px] font-bold text-primary-theme" style={{ width: `${(detail.sellCount / detail.totalAnalysts) * 100}%` }}>
-              {detail.sellCount}
-            </div>
+            {detail.totalAnalysts > 0 ? (
+              <>
+                <div className="bg-green-theme flex items-center justify-center text-[10px] font-bold text-primary-theme" style={{ width: `${(detail.buyCount / detail.totalAnalysts) * 100}%` }}>
+                  {detail.buyCount}
+                </div>
+                <div className="bg-amber-theme flex items-center justify-center text-[10px] font-bold text-primary-theme" style={{ width: `${(detail.holdCount / detail.totalAnalysts) * 100}%` }}>
+                  {detail.holdCount}
+                </div>
+                <div className="bg-red-theme flex items-center justify-center text-[10px] font-bold text-primary-theme" style={{ width: `${(detail.sellCount / detail.totalAnalysts) * 100}%` }}>
+                  {detail.sellCount}
+                </div>
+              </>
+            ) : (
+              <div className="flex-1 bg-kbd-theme flex items-center justify-center text-[10px] text-muted-theme">No ratings</div>
+            )}
           </div>
 
           {/* Individual Ratings */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {detail.ratings.map((r, i) => (
+            {(detail.ratings || []).map((r, i) => (
               <div key={i} className="flex items-center justify-between p-3 rounded-lg bg-input-theme border border-theme">
                 <div>
                   <div className="font-semibold text-primary-theme text-sm">{r.analyst}</div>
@@ -188,7 +198,7 @@ export default function AnalystsPage() {
                   <div className={`font-bold text-sm ${getRatingColor(r.rating)}`}>{r.rating}</div>
                   <div className="text-xs text-muted-theme">
                     <Target className="inline h-3 w-3 mr-1" />
-                    Rs {r.priceTarget.toLocaleString()}
+                    Rs {(r.priceTarget ?? 0).toLocaleString()}
                   </div>
                 </div>
               </div>

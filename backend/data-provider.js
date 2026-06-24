@@ -322,130 +322,31 @@ async function getAnnouncements() {
 // ═══════════════════════════════════════════════════════════
 
 function generateSyntheticFundamentals(symbols) {
-  const CATEGORY_MAP = {
-    ADBL: "Commercial Bank", NMB: "Commercial Bank", SBL: "Commercial Bank",
-    NCCB: "Commercial Bank", KBL: "Commercial Bank", LBL: "Commercial Bank",
-    MBL: "Commercial Bank", EBL: "Commercial Bank", NBB: "Commercial Bank",
-    SBI: "Commercial Bank", HBL: "Commercial Bank", SCB: "Commercial Bank",
-    NIB: "Commercial Bank", NABIL: "Commercial Bank", CZBIL: "Commercial Bank",
-    PCBL: "Commercial Bank", SRBL: "Commercial Bank", SANIMA: "Commercial Bank",
-    MEGA: "Commercial Bank", CBL: "Commercial Bank", CCBL: "Commercial Bank",
-    NBL: "Commercial Bank", GBIME: "Commercial Bank", NICA: "Commercial Bank",
-    PRVU: "Commercial Bank", BOKL: "Commercial Bank",
-  };
-  const sectorMultiples = {
-    "Commercial Bank": { pe: [8, 15], pb: [1.0, 2.5], eps: [15, 45], roe: [12, 22], dividendYield: [2, 8] },
-    "Development Bank": { pe: [10, 18], pb: [1.2, 3.0], eps: [20, 50], roe: [10, 18], dividendYield: [1, 6] },
-    "Finance": { pe: [8, 14], pb: [0.8, 2.0], eps: [25, 60], roe: [8, 15], dividendYield: [0, 5] },
-    "Hydropower": { pe: [15, 35], pb: [1.5, 4.0], eps: [5, 25], roe: [8, 20], dividendYield: [0, 4] },
-    "Life Insurance": { pe: [10, 20], pb: [1.5, 3.5], eps: [30, 70], roe: [15, 25], dividendYield: [2, 7] },
-    "Other": { pe: [8, 18], pb: [1.0, 2.5], eps: [10, 35], roe: [8, 16], dividendYield: [1, 5] },
-  };
-  const targetSyms = symbols || Object.keys(CATEGORY_MAP);
-  const result = {};
-  for (const sym of targetSyms) {
-    const category = CATEGORY_MAP[sym] || "Other";
-    const m = sectorMultiples[category] || sectorMultiples["Other"];
-    const hash = sym.split("").reduce((a, c) => a + c.charCodeAt(0), 0);
-    const eps = m.eps[0] + ((hash * 7) % (m.eps[1] - m.eps[0]));
-    const pe = 100 / eps;
-    const pb = m.pb[0] + ((hash * 3) % ((m.pb[1] - m.pb[0]) * 10)) / 10;
-    const roe = m.roe[0] + ((hash * 11) % (m.roe[1] - m.roe[0]));
-    const dy = m.dividendYield[0] + ((hash * 5) % (m.dividendYield[1] - m.dividendYield[0]));
-    result[sym] = {
-      symbol: sym, category, pe: Math.round(pe * 100) / 100, eps: Math.round(eps * 100) / 100,
-      pb: Math.round(pb * 100) / 100, roe: Math.round(roe * 100) / 100,
-      roce: Math.round((roe + 2 + ((hash * 29) % 5)) * 100) / 100,
-      dividendYield: Math.round(dy * 100) / 100,
-      debtToEquity: Math.round((0.5 + ((hash * 13) % 200) / 100) * 100) / 100,
-      bookValue: Math.round((100 / pb) * 100) / 100,
-      marketCap: Math.round(100 * (5000000 + ((hash * 17) % 50000000))),
-      beta: Math.round((0.6 + ((hash * 43) % 10) / 10) * 100) / 100,
-      fiftyTwoWeekHigh: Math.round(100 * (1.1 + ((hash * 19) % 30) / 100) * 100) / 100,
-      fiftyTwoWeekLow: Math.round(100 * (0.6 + ((hash * 23) % 30) / 100) * 100) / 100,
-    };
-  }
-  return result;
+  return {};
 }
 
 function generateSyntheticIPO() {
-  const names = [
-    { symbol: "HRL", name: "Himalaya Rice Ltd", sector: "Agro/Food", issuePrice: 100 },
-    { symbol: "SKBBL", name: "Sunrise Kupondole Bank", sector: "Commercial Bank", issuePrice: 100 },
-    { symbol: "UPCL", name: "Upper Power Company", sector: "Hydropower", issuePrice: 100 },
-    { symbol: "KMCDB", name: "Kathmandu Metropolitan Commercial", sector: "Commercial Bank", issuePrice: 100 },
-    { symbol: "NBIL", name: "Nepal Bilash Industries", sector: "Manufacturing", issuePrice: 100 },
-    { symbol: "TPC", name: "Trishuli Power Corporation", sector: "Hydropower", issuePrice: 100 },
-    { symbol: "MHL", name: "Mountain Helpline Services", sector: "Tourism/Hospitality", issuePrice: 100 },
-    { symbol: "GBPBL", name: "Gautam Buddha Power Bank", sector: "Development Bank", issuePrice: 100 },
-    { symbol: "NLGL", name: "Nepal Life General Insurance", sector: "Non-Life Insurance", issuePrice: 100 },
-    { symbol: "AKPL", name: "Arun Kabeli Power", sector: "Hydropower", issuePrice: 100 },
-    { symbol: "BNLICL", name: "Buddha Nepal Life Insurance", sector: "Life Insurance", issuePrice: 100 },
-    { symbol: "SMFCL", name: "Sagarmatha Microfinance", sector: "Finance", issuePrice: 100 },
-  ];
-  return names.map((n, i) => ({
-    ...n,
-    issueDate: `2025-${String((i % 12) + 1).padStart(2, "0")}-${String(10 + (i * 3) % 20).padStart(2, "0")}`,
-    status: i < 8 ? "Listed" : "Upcoming",
-    lots: 10 + (i * 5),
-    price: 100 + Math.round((Math.random() - 0.3) * 50),
-    change: Math.round((Math.random() - 0.5) * 10 * 100) / 100,
-  }));
+  return [];
 }
 
 function generateSyntheticMutualFunds() {
-  return [
-    { symbol: "MMF1", name: "Mega Mutual Fund-1", category: "Open End", nav: 125.5, aum: 2500000000, expenseRatio: 1.5, manager: "Nepal Investment Bank" },
-    { symbol: "NIMB1", name: "NIMB Equity Fund", category: "Open End", nav: 145.8, aum: 3200000000, expenseRatio: 1.8, manager: "NIMB Bank" },
-    { symbol: "SBL1", name: "SBL Balance Fund", category: "Open End", nav: 112.3, aum: 1800000000, expenseRatio: 1.2, manager: "Siddhartha Bank" },
-    { symbol: "NABIL1", name: "NABIL Growth Fund", category: "Open End", nav: 168.9, aum: 4500000000, expenseRatio: 2.0, manager: "Nabil Bank" },
-    { symbol: "SANIMA1", name: "Sanima Equity Fund", category: "Open End", nav: 132.4, aum: 2100000000, expenseRatio: 1.6, manager: "Sanima Bank" },
-    { symbol: "HBL1", name: "HBL Balanced Fund", category: "Open End", nav: 98.7, aum: 1200000000, expenseRatio: 1.3, manager: "Himalayan Bank" },
-    { symbol: "KBL1", name: "Kumari Growth Fund", category: "Open End", nav: 156.2, aum: 2800000000, expenseRatio: 1.7, manager: "Kumari Bank" },
-    { symbol: "MBL1", name: "Machhapuchhre Fund", category: "Open End", nav: 108.5, aum: 1500000000, expenseRatio: 1.4, manager: "Machhapuchhre Bank" },
-  ];
+  return [];
 }
 
 function generateSyntheticDebentures() {
-  return [
-    { symbol: "DEB001", name: "Nepal Electricity Authority Debenture", issuer: "NEA", couponRate: 8.5, maturityDate: "2030-12-31", faceValue: 1000, creditRating: "AA+" },
-    { symbol: "DEB002", name: "Himalayan Power Debenture", issuer: "HPL", couponRate: 9.0, maturityDate: "2032-06-30", faceValue: 1000, creditRating: "AA" },
-    { symbol: "DEB003", name: "Nepal Telecom Bond", issuer: "NTC", couponRate: 7.5, maturityDate: "2028-12-31", faceValue: 1000, creditRating: "AAA" },
-    { symbol: "DEB004", name: "Banking Sector Debenture", issuer: "NRAA", couponRate: 8.0, maturityDate: "2029-09-30", faceValue: 1000, creditRating: "AA+" },
-    { symbol: "DEB005", name: "Infrastructure Bond 2025", issuer: "Govt", couponRate: 9.5, maturityDate: "2035-12-31", faceValue: 1000, creditRating: "AAA" },
-  ];
+  return [];
 }
 
 function generateSyntheticInsiderTrading() {
-  return [
-    { id: 1, symbol: "NMB", insiderName: "Ram Kumar Shrestha", designation: "Managing Director", transactionType: "Buy", quantity: 5000, price: 242.5, totalValue: 1212500, date: "2026-06-18" },
-    { id: 2, symbol: "NABIL", insiderName: "Sita Gurung", designation: "CFO", transactionType: "Sell", quantity: 2000, price: 530.0, totalValue: 1060000, date: "2026-06-17" },
-    { id: 3, symbol: "EBL", insiderName: "Hari Prasad Adhikari", designation: "Board Member", transactionType: "Buy", quantity: 10000, price: 695.0, totalValue: 6950000, date: "2026-06-16" },
-    { id: 4, symbol: "SCB", insiderName: "Anita Thapa", designation: "CEO", transactionType: "Sell", quantity: 3000, price: 648.0, totalValue: 1944000, date: "2026-06-15" },
-    { id: 5, symbol: "SANIMA", insiderName: "Prakash Chand", designation: "Director", transactionType: "Buy", quantity: 8000, price: 359.0, totalValue: 2872000, date: "2026-06-14" },
-  ];
+  return [];
 }
 
 function generateSyntheticEarnings() {
-  return [
-    { symbol: "NMB", companyName: "Nepal Bangladesh Bank", sector: "Commercial Bank", reportType: "Q4 FY2025/26", announcementDate: "2026-07-15", fiscalYear: "2025/26", estimatedEPS: 28.5, previousEPS: 25.2 },
-    { symbol: "NABIL", companyName: "Nabil Bank", sector: "Commercial Bank", reportType: "Q4 FY2025/26", announcementDate: "2026-07-14", fiscalYear: "2025/26", estimatedEPS: 42.8, previousEPS: 38.5 },
-    { symbol: "EBL", companyName: "Everest Bank", sector: "Commercial Bank", reportType: "Q4 FY2025/26", announcementDate: "2026-07-13", fiscalYear: "2025/26", estimatedEPS: 55.2, previousEPS: 50.1 },
-    { symbol: "SCB", companyName: "Standard Chartered Bank", sector: "Commercial Bank", reportType: "Q4 FY2025/26", announcementDate: "2026-07-12", fiscalYear: "2025/26", estimatedEPS: 68.5, previousEPS: 62.3 },
-    { symbol: "SANIMA", companyName: "Sanima Bank", sector: "Commercial Bank", reportType: "Q4 FY2025/26", announcementDate: "2026-07-11", fiscalYear: "2025/26", estimatedEPS: 35.2, previousEPS: 31.8 },
-  ];
+  return [];
 }
 
 function generateSyntheticBrokers() {
-  return Array.from({ length: 50 }, (_, i) => ({
-    brokerNo: i + 1,
-    name: `Broker ${i + 1}`,
-    buyAmount: Math.round(Math.random() * 100000000),
-    sellAmount: Math.round(Math.random() * 100000000),
-    totalAmount: Math.round(Math.random() * 200000000),
-    transactions: Math.floor(Math.random() * 5000),
-    volume: Math.floor(Math.random() * 500000),
-  }));
+  return [];
 }
 
 function generateSyntheticHoldings() {
@@ -453,11 +354,7 @@ function generateSyntheticHoldings() {
 }
 
 function generateSyntheticAnnouncements() {
-  return [
-    { title: "NEPSE Trading Holiday Notice", date: "2026-06-20", type: "Notice", source: "NEPSE" },
-    { title: "New IPO Application Window", date: "2026-06-19", type: "IPO", source: "NEPSE" },
-    { title: "Dividend Distribution Schedule", date: "2026-06-18", type: "Dividend", source: "NEPSE" },
-  ];
+  return [];
 }
 
 module.exports = {

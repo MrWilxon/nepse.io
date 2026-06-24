@@ -30,16 +30,19 @@ export default function SentimentPage() {
   }, [selectedSymbol]);
 
   const getSentimentColor = (sentiment: string) => {
+    if (!sentiment) return "#f59e0b";
     if (sentiment.includes("bullish")) return "#22c55e";
     if (sentiment.includes("bearish")) return "#ef4444";
     return "#f59e0b";
   };
 
   const getSentimentLabel = (sentiment: string) => {
+    if (!sentiment) return "Neutral";
     return sentiment.replace("_", " ").replace(/\b\w/g, (c) => c.toUpperCase());
   };
 
   const getScoreColor = (score: number) => {
+    if (score == null) return "text-muted-theme";
     if (score >= 60) return "text-green-theme";
     if (score <= 40) return "text-red-theme";
     return "text-amber-theme";
@@ -80,6 +83,9 @@ export default function SentimentPage() {
         </div>
       ) : (
         <div className="space-y-2">
+          {(!companies || companies.length === 0) && (
+            <div className="text-center py-12 text-muted-theme">No sentiment data available</div>
+          )}
           {companies?.map((c) => (
             <div
               key={c.symbol}
@@ -151,7 +157,7 @@ export default function SentimentPage() {
 
           {/* Platform Breakdown */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {detail.platforms.map((p) => (
+            {(detail.platforms || []).map((p) => (
               <div key={p.platform} className="card-3d p-4">
                 <div className="text-sm font-semibold text-primary-theme mb-2">{p.platform}</div>
                 <div className="flex items-center gap-2 mb-2">
@@ -179,7 +185,7 @@ export default function SentimentPage() {
               Trending Topics
             </h3>
             <div className="flex flex-wrap gap-2">
-              {detail.trendingTopics.map((t, i) => (
+              {(detail.trendingTopics || []).map((t, i) => (
                 <span
                   key={i}
                   className="px-3 py-1.5 rounded-lg text-xs font-medium border"

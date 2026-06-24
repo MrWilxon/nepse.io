@@ -46,6 +46,7 @@ export default function DebenturesPage() {
   };
 
   const getRatingColor = (rating: string) => {
+    if (!rating) return "text-muted-theme";
     if (rating.startsWith("AAA")) return "text-green-theme";
     if (rating.startsWith("AA")) return "text-green-theme";
     if (rating.startsWith("A")) return "text-accent-theme";
@@ -78,24 +79,27 @@ export default function DebenturesPage() {
         </div>
       ) : (
         <div className="grid gap-4">
+          {filtered.length === 0 && !loading && (
+            <div className="text-center py-12 text-muted-theme">No debentures found</div>
+          )}
           {filtered.map((d) => (
             <div key={d.symbol} className="card-3d p-5">
               <div className="flex items-start justify-between">
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-1">
                     <span className="font-bold text-primary-theme">{d.symbol}</span>
-                    <span className={`text-xs font-bold px-2 py-0.5 rounded ${getRatingColor(d.creditRating)} bg-kbd-theme`}>
-                      {d.creditRating}
+                    <span className={`text-xs font-bold px-2 py-0.5 rounded ${getRatingColor(d.creditRating || "")} bg-kbd-theme`}>
+                      {d.creditRating || "N/A"}
                     </span>
                   </div>
                   <div className="text-sm text-body-theme">{d.name}</div>
                   <div className="text-xs text-muted-theme mt-0.5">Issuer: {d.issuer}</div>
                 </div>
                 <div className="text-right">
-                  <div className="text-lg font-bold font-mono text-primary-theme">Rs {d.currentPrice}</div>
-                  <div className={`text-xs font-bold flex items-center gap-1 justify-end ${d.dayChange >= 0 ? "text-green-theme" : "text-red-theme"}`}>
-                    {d.dayChange >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
-                    {d.dayChange >= 0 ? "+" : ""}{d.dayChange.toFixed(2)}
+                  <div className="text-lg font-bold font-mono text-primary-theme">Rs {d.currentPrice ?? "—"}</div>
+                  <div className={`text-xs font-bold flex items-center gap-1 justify-end ${(d.dayChange ?? 0) >= 0 ? "text-green-theme" : "text-red-theme"}`}>
+                    {(d.dayChange ?? 0) >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+                    {(d.dayChange ?? 0) >= 0 ? "+" : ""}{(d.dayChange ?? 0).toFixed(2)}
                   </div>
                 </div>
               </div>

@@ -30,6 +30,7 @@ interface ChainResponse {
   chain: OptionChain[];
   expiry: string;
   expiryDates: string[];
+  message?: string;
 }
 
 export default function OptionsPage() {
@@ -109,59 +110,69 @@ export default function OptionsPage() {
           ))}
         </div>
       ) : chain ? (
-        <div className="overflow-x-auto rounded-xl border border-theme">
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="bg-table-header-theme">
-                <th colSpan={7} className="px-4 py-2 text-center text-xs font-bold text-green-theme border-r border-theme">CALLS</th>
-                <th className="px-4 py-2 text-center text-xs font-bold text-accent-theme bg-input-theme">Strike</th>
-                <th colSpan={7} className="px-4 py-2 text-center text-xs font-bold text-red-theme border-l border-theme">PUTS</th>
-              </tr>
-              <tr className="bg-table-header-theme">
-                <th className="px-2 py-2 text-muted-theme">OI</th>
-                <th className="px-2 py-2 text-muted-theme">Vol</th>
-                <th className="px-2 py-2 text-muted-theme">Bid</th>
-                <th className="px-2 py-2 text-muted-theme">Price</th>
-                <th className="px-2 py-2 text-muted-theme">Ask</th>
-                <th className="px-2 py-2 text-muted-theme">IV</th>
-                <th className="px-2 py-2 text-muted-theme border-r border-theme">Delta</th>
-                <th className="px-4 py-2 text-accent-theme bg-input-theme">Price</th>
-                <th className="px-2 py-2 text-muted-theme border-l border-theme">Delta</th>
-                <th className="px-2 py-2 text-muted-theme">IV</th>
-                <th className="px-2 py-2 text-muted-theme">Ask</th>
-                <th className="px-2 py-2 text-muted-theme">Price</th>
-                <th className="px-2 py-2 text-muted-theme">Bid</th>
-                <th className="px-2 py-2 text-muted-theme">Vol</th>
-                <th className="px-2 py-2 text-muted-theme">OI</th>
-              </tr>
-            </thead>
-            <tbody>
-              {chain.chain.map((row) => {
-                const isATM = Math.abs(row.strike - chain.spotPrice) < (chain.spotPrice * 0.03);
-                return (
-                  <tr key={row.strike} className={`border-t border-theme ${isATM ? "bg-accent-theme/5" : "hover:bg-hover-theme"}`}>
-                    <td className="px-2 py-2 text-right font-mono text-body-theme">{row.call.openInterest.toLocaleString()}</td>
-                    <td className="px-2 py-2 text-right font-mono text-body-theme">{row.call.volume.toLocaleString()}</td>
-                    <td className="px-2 py-2 text-right font-mono text-green-theme">{row.call.bid}</td>
-                    <td className="px-2 py-2 text-right font-mono font-bold text-primary-theme">{row.call.price}</td>
-                    <td className="px-2 py-2 text-right font-mono text-green-theme">{row.call.ask}</td>
-                    <td className="px-2 py-2 text-right font-mono text-muted-theme">{row.call.impliedVol}%</td>
-                    <td className="px-2 py-2 text-right font-mono text-muted-theme border-r border-theme">{row.call.delta}</td>
-                    <td className={`px-4 py-2 text-center font-mono font-bold text-accent-theme bg-input-theme ${isATM ? "text-accent-theme" : "text-primary-theme"}`}>
-                      {row.strike}
-                    </td>
-                    <td className="px-2 py-2 text-left font-mono text-muted-theme border-l border-theme">{row.put.delta}</td>
-                    <td className="px-2 py-2 text-left font-mono text-muted-theme">{row.put.impliedVol}%</td>
-                    <td className="px-2 py-2 text-left font-mono text-red-theme">{row.put.ask}</td>
-                    <td className="px-2 py-2 text-left font-mono font-bold text-primary-theme">{row.put.price}</td>
-                    <td className="px-2 py-2 text-left font-mono text-red-theme">{row.put.bid}</td>
-                    <td className="px-2 py-2 text-left font-mono text-body-theme">{row.put.volume.toLocaleString()}</td>
-                    <td className="px-2 py-2 text-left font-mono text-body-theme">{row.put.openInterest.toLocaleString()}</td>
+        <div>
+          {(!chain.chain || chain.chain.length === 0) ? (
+            <div className="text-center py-12 text-muted-theme">
+              {chain.message || "No options data available for this symbol"}
+            </div>
+          ) : (
+            <div className="overflow-x-auto rounded-xl border border-theme">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="bg-table-header-theme">
+                    <th colSpan={7} className="px-4 py-2 text-center text-xs font-bold text-green-theme border-r border-theme">CALLS</th>
+                    <th className="px-4 py-2 text-center text-xs font-bold text-accent-theme bg-input-theme">Strike</th>
+                    <th colSpan={7} className="px-4 py-2 text-center text-xs font-bold text-red-theme border-l border-theme">PUTS</th>
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                  <tr className="bg-table-header-theme">
+                    <th className="px-2 py-2 text-muted-theme">OI</th>
+                    <th className="px-2 py-2 text-muted-theme">Vol</th>
+                    <th className="px-2 py-2 text-muted-theme">Bid</th>
+                    <th className="px-2 py-2 text-muted-theme">Price</th>
+                    <th className="px-2 py-2 text-muted-theme">Ask</th>
+                    <th className="px-2 py-2 text-muted-theme">IV</th>
+                    <th className="px-2 py-2 text-muted-theme border-r border-theme">Delta</th>
+                    <th className="px-4 py-2 text-accent-theme bg-input-theme">Price</th>
+                    <th className="px-2 py-2 text-muted-theme border-l border-theme">Delta</th>
+                    <th className="px-2 py-2 text-muted-theme">IV</th>
+                    <th className="px-2 py-2 text-muted-theme">Ask</th>
+                    <th className="px-2 py-2 text-muted-theme">Price</th>
+                    <th className="px-2 py-2 text-muted-theme">Bid</th>
+                    <th className="px-2 py-2 text-muted-theme">Vol</th>
+                    <th className="px-2 py-2 text-muted-theme">OI</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {chain.chain.map((row) => {
+                    const isATM = Math.abs(row.strike - chain.spotPrice) < (chain.spotPrice * 0.03);
+                    const c = row.call || {};
+                    const p = row.put || {};
+                    return (
+                      <tr key={row.strike} className={`border-t border-theme ${isATM ? "bg-accent-theme/5" : "hover:bg-hover-theme"}`}>
+                        <td className="px-2 py-2 text-right font-mono text-body-theme">{(c.openInterest ?? 0).toLocaleString()}</td>
+                        <td className="px-2 py-2 text-right font-mono text-body-theme">{(c.volume ?? 0).toLocaleString()}</td>
+                        <td className="px-2 py-2 text-right font-mono text-green-theme">{c.bid ?? "—"}</td>
+                        <td className="px-2 py-2 text-right font-mono font-bold text-primary-theme">{c.price ?? "—"}</td>
+                        <td className="px-2 py-2 text-right font-mono text-green-theme">{c.ask ?? "—"}</td>
+                        <td className="px-2 py-2 text-right font-mono text-muted-theme">{c.impliedVol != null ? `${c.impliedVol}%` : "—"}</td>
+                        <td className="px-2 py-2 text-right font-mono text-muted-theme border-r border-theme">{c.delta ?? "—"}</td>
+                        <td className={`px-4 py-2 text-center font-mono font-bold text-accent-theme bg-input-theme ${isATM ? "text-accent-theme" : "text-primary-theme"}`}>
+                          {row.strike}
+                        </td>
+                        <td className="px-2 py-2 text-left font-mono text-muted-theme border-l border-theme">{p.delta ?? "—"}</td>
+                        <td className="px-2 py-2 text-left font-mono text-muted-theme">{p.impliedVol != null ? `${p.impliedVol}%` : "—"}</td>
+                        <td className="px-2 py-2 text-left font-mono text-red-theme">{p.ask ?? "—"}</td>
+                        <td className="px-2 py-2 text-left font-mono font-bold text-primary-theme">{p.price ?? "—"}</td>
+                        <td className="px-2 py-2 text-left font-mono text-red-theme">{p.bid ?? "—"}</td>
+                        <td className="px-2 py-2 text-left font-mono text-body-theme">{(p.volume ?? 0).toLocaleString()}</td>
+                        <td className="px-2 py-2 text-left font-mono text-body-theme">{(p.openInterest ?? 0).toLocaleString()}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       ) : (
         <div className="text-center py-12 text-muted-theme">Enter a symbol and click Load Chain</div>

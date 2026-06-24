@@ -105,6 +105,9 @@ export default function InsiderTradingPage() {
         </div>
       ) : (
         <div className="space-y-3">
+          {transactions.length === 0 && (
+            <div className="text-center py-12 text-muted-theme">No insider trading data available</div>
+          )}
           {transactions.map((t) => (
             <div key={t.id} className="card-3d p-4">
               <div className="flex items-center justify-between">
@@ -123,7 +126,7 @@ export default function InsiderTradingPage() {
                       <span className="text-xs text-muted-theme">{t.designation}</span>
                     </div>
                     <div className="text-xs text-muted-theme mt-0.5">
-                      {t.symbol} · {t.date} · Holding: {t.percentageHolding}%
+                      {t.symbol} · {t.date} · Holding: {t.percentageHolding ?? "—"}%
                     </div>
                   </div>
                 </div>
@@ -136,10 +139,10 @@ export default function InsiderTradingPage() {
                     {t.transactionType}
                   </div>
                   <div className="mt-1 font-mono text-sm text-primary-theme">
-                    {t.quantity.toLocaleString()} @ Rs {t.price}
+                    {(t.quantity ?? 0).toLocaleString()} @ Rs {t.price ?? "—"}
                   </div>
                   <div className="font-mono text-xs text-accent-theme font-bold">
-                    {formatValue(t.totalValue)}
+                    {formatValue(t.totalValue ?? 0)}
                   </div>
                 </div>
               </div>

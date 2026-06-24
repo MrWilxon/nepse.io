@@ -98,6 +98,11 @@ setInterval(() => {
   }
 }, RATE_LIMIT_WINDOW * 2);
 
+// ═══════════════════════════════════════════════════════════
+// ROUTE MODULES (extracted from monolith for maintainability)
+// ═══════════════════════════════════════════════════════════
+const setupMarketRoutes = require("./routes/market");
+
 const NEPSE_HOLIDAYS_2025_2026 = [
   "2025-01-01", "2025-02-01", "2025-02-02", "2025-02-19", "2025-03-14",
   "2025-03-29", "2025-04-10", "2025-04-11", "2025-04-14", "2025-05-01",
@@ -789,6 +794,16 @@ function parseRecords(records) {
     turnover: parseFloat(r.traded_amount) || 0,
   }));
 }
+
+// Register route modules
+setupMarketRoutes(app, {
+  readCompanyCSV, parseRecords, getAllCompanyData,
+  CATEGORY_MAP, NAME_MAP, GROUP_MAP, SHORT_CATEGORY_MAP,
+  SMA, EMA, RSI, MACD, BollingerBands, Stochastic, MFI, WilliamsR, ADX, CCI, ATR, OBV,
+  getCachedIndicators, setCachedIndicators, dataProvider, broadcast, rateLimit,
+  companyDataCache, supabase, invalidateCache,
+});
+
 app.get("/api/companies", (req, res) => {
   try {
     const companies = [];
@@ -1002,6 +1017,16 @@ app.get("/api/market-summary", (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+app.get("/api/nepse-index", async (req, res) => {
+  try {
+    const data = await dataProvider.getNepseIndex();
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get("/api/dividends/:symbol", (req, res) => {
   const symbol = req.params.symbol.toUpperCase();
   const records = readCompanyCSV(symbol);
@@ -1881,7 +1906,19 @@ app.get("/api/earnings-calendar", async (req, res) => {
 });
 
 // ============ FUNDAMENTAL DATA ============
-function calculateFundamentals(symbol) {
+let fundamentalsCache = null;
+
+async function loadFundamentalsCache() {
+  if (fundamentalsCache) return fundamentalsCache;
+  try {
+    fundamentalsCache = await dataProvider.getFundamentals();
+  } catch (e) {
+    fundamentalsCache = {};
+  }
+  return fundamentalsCache;
+}
+
+async function calculateFundamentals(symbol) {
   const records = readCompanyCSV(symbol);
   if (!records || records.length === 0) return null;
   const latest = records[records.length - 1];
@@ -1895,7 +1932,7 @@ function calculateFundamentals(symbol) {
   const fiftyTwoWeekHigh = allCloses.length > 0 ? Math.max(...allCloses) : null;
   const fiftyTwoWeekLow = allCloses.length > 0 ? Math.min(...allCloses) : null;
 
-  return {
+  const base = {
     symbol,
     companyName,
     category,
@@ -1907,6 +1944,51 @@ function calculateFundamentals(symbol) {
     latestDate: latest.published_date,
     fiftyTwoWeekHigh,
     fiftyTwoWeekLow,
+  };
+
+  const fundCache = await loadFundamentalsCache();
+  const scraped = fundCache && fundCache[symbol];
+
+  if (scraped && !scraped.error) {
+    return {
+      ...base,
+      listedShares: scraped.listedShares || null,
+      listedSharesFormatted: scraped.listedSharesFormatted || null,
+      paidUpValue: scraped.paidUpValue || null,
+      totalPaidUpValue: scraped.totalPaidUpValue || null,
+      marketCap: scraped.marketCap || (close > 0 && scraped.listedShares ? close * scraped.listedShares : null),
+      marketCapFormatted: scraped.marketCapFormatted || null,
+      units: scraped.listedShares || null,
+      unitsFormatted: scraped.listedSharesFormatted || null,
+      float: scraped.float || null,
+      floatFormatted: scraped.floatFormatted || null,
+      floatCap: scraped.floatCap || null,
+      floatCapFormatted: scraped.floatCapFormatted || null,
+      pe: scraped.pe || null,
+      pb: scraped.pb || null,
+      eps: scraped.eps || null,
+      roe: scraped.roe || null,
+      roce: scraped.roce || null,
+      dividendYield: scraped.dividendYield || null,
+      debtToEquity: scraped.debtToEquity || null,
+      bookValue: scraped.bookValue || null,
+      beta: scraped.beta || null,
+      bonusPct: scraped.bonusPct ?? null,
+      cashDividendPct: scraped.cashDividendPct ?? null,
+      bookClose: scraped.bookClose || null,
+      dividendYear: scraped.dividendYear || null,
+      ma5: scraped.ma5 || null,
+      ma5Signal: scraped.ma5Signal || null,
+      ma20: scraped.ma20 || null,
+      ma20Signal: scraped.ma20Signal || null,
+      ma180: scraped.ma180 || null,
+      ma180Signal: scraped.ma180Signal || null,
+      _dataSource: "scraped",
+    };
+  }
+
+  return {
+    ...base,
     pe: null,
     pb: null,
     eps: null,
@@ -1914,9 +1996,6 @@ function calculateFundamentals(symbol) {
     roce: null,
     dividendYield: null,
     debtToEquity: null,
-    interestCoverage: null,
-    currentRatio: null,
-    quickRatio: null,
     bookValue: null,
     marketCap: null,
     marketCapFormatted: null,
@@ -1930,13 +2009,14 @@ function calculateFundamentals(symbol) {
     bonusPct: null,
     cashDividendPct: null,
     bookClose: null,
+    _dataSource: "price_only",
   };
 }
 
-app.get("/api/fundamentals/:symbol", (req, res) => {
+app.get("/api/fundamentals/:symbol", async (req, res) => {
   try {
     const symbol = req.params.symbol.toUpperCase();
-    const fundamentals = calculateFundamentals(symbol);
+    const fundamentals = await calculateFundamentals(symbol);
     if (!fundamentals) return res.status(404).json({ error: "Company not found" });
     res.json(fundamentals);
   } catch (err) {
@@ -1944,13 +2024,13 @@ app.get("/api/fundamentals/:symbol", (req, res) => {
   }
 });
 
-app.get("/api/fundamentals", (req, res) => {
+app.get("/api/fundamentals", async (req, res) => {
   try {
     const { sort, sector } = req.query;
     const allData = getAllCompanyData();
     let results = [];
     for (const { symbol } of allData) {
-      const fund = calculateFundamentals(symbol);
+      const fund = await calculateFundamentals(symbol);
       if (fund) {
         if (!sector || fund.category === sector) results.push(fund);
       }
@@ -3572,7 +3652,7 @@ app.get("/api/announcements", async (req, res) => {
   try {
     const { symbol, type, limit } = req.query;
     let data = await dataProvider.getAnnouncements();
-    if (!Array.isArray(data)) data = [...nepseAnnouncements];
+    if (!Array.isArray(data) || data.length === 0) data = [...nepseAnnouncements];
     if (symbol) data = data.filter(a => a.symbol === symbol.toUpperCase());
     if (type) data = data.filter(a => a.type === type);
     const count = limit ? parseInt(limit) : data.length;

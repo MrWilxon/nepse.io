@@ -95,10 +95,10 @@ export function AdSense({
 export function LeaderboardAd({ className = "" }: { className?: string }) {
   return (
     <AdSense
-      slot="8787584106"
+      slot="3590052334"
       format="auto"
       className={className}
-      style={{ width: "100%", maxWidth: "728px", height: "90px", margin: "0 auto" }}
+      style={{ display: "block" }}
     />
   );
 }

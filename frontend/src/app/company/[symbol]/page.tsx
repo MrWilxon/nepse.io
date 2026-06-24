@@ -31,7 +31,7 @@ import {
 import type { IndicatorData, CompanyStats, ChartPattern } from "@/lib/api";
 import { useWatchlist } from "@/lib/watchlist";
 import { exportCSV } from "@/lib/export";
-import { InArticleAd } from "@/components/adsense";
+import { CandlestickChart } from "@/components/candlestick-chart";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -148,21 +148,6 @@ export default function CompanyPage() {
     exportCSV(csvData, `${symbol}_data.csv`);
   };
 
-  const chartData = useMemo(() => {
-    if (chartType === "candlestick") {
-      return data.map((d) => ({
-        ...d,
-        candleColor: (d.close ?? 0) >= (d.open ?? 0) ? "#16a34a" : "#dc2626",
-        bodyTop: Math.max(d.open ?? 0, d.close ?? 0),
-        bodyBottom: Math.min(d.open ?? 0, d.close ?? 0),
-        bodyHeight: Math.abs((d.close ?? 0) - (d.open ?? 0)) || 0.1,
-        wickTop: d.high,
-        wickBottom: d.low,
-      }));
-    }
-    return data;
-  }, [data, chartType]);
-
   if (loading) {
     return (
       <div className="py-20 text-center text-[var(--text-muted)]">
@@ -189,44 +174,6 @@ export default function CompanyPage() {
   const prev = data[data.length - 2];
   const change = latest && prev ? latest.close - prev.close : 0;
   const changePct = prev ? (change / prev.close) * 100 : 0;
-
-  const CandlestickShape = (props: any) => {
-    const { x, y, width, height, payload } = props;
-    if (!payload) return null;
-    const { open, high, low, close } = payload;
-    const isGreen = close >= open;
-    const color = isGreen ? "#16a34a" : "#dc2626";
-    const yScale = props.yAxis;
-
-    const highY = yScale?.scale?.(high) ?? y;
-    const lowY = yScale?.scale?.(low) ?? y + height;
-    const openY = yScale?.scale?.(open) ?? y;
-    const closeY = yScale?.scale?.(close) ?? y + height;
-    const bodyTop = Math.min(openY, closeY);
-    const bodyH = Math.max(Math.abs(closeY - openY), 1);
-    const centerX = x + width / 2;
-
-    return (
-      <g>
-        <line
-          x1={centerX}
-          y1={highY}
-          x2={centerX}
-          y2={lowY}
-          stroke={color}
-          strokeWidth={1}
-        />
-        <rect
-          x={x + 2}
-          y={bodyTop}
-          width={width - 4}
-          height={bodyH}
-          fill={color}
-          stroke={color}
-        />
-      </g>
-    );
-  };
 
   return (
     <div className="space-y-6">
@@ -428,92 +375,7 @@ export default function CompanyPage() {
             <h2 className="mb-4 text-sm font-medium text-[var(--text-muted)]">
               {chartType === "candlestick" ? "OHLC Chart" : "Price Chart"}
             </h2>
-            <ResponsiveContainer width="100%" height={450}>
-              <ComposedChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--border-primary)" />
-                <XAxis
-                  dataKey="date"
-                  tickFormatter={formatDateShort}
-                  tick={{ fontSize: 11 }}
-                  minTickGap={30}
-                />
-                <YAxis
-                  tick={{ fontSize: 11 }}
-                  domain={["auto", "auto"]}
-                  tickFormatter={(v) => `Rs ${v}`}
-                />
-                <Tooltip
-                  content={({ active, payload }) => {
-                    if (!active || !payload?.length) return null;
-                    const d = payload[0]?.payload;
-                    if (!d) return null;
-                    return (
-                      <div className="rounded-lg border border-[var(--border-primary)] bg-[var(--bg-card)] p-3 shadow-lg">
-                        <div className="text-xs text-[var(--text-muted)]">{d.date}</div>
-                        <div className="mt-1 space-y-0.5 text-sm">
-                          <div className="flex justify-between gap-4">
-                            <span className="text-[var(--text-muted)]">Open</span>
-                            <span className="font-mono">Rs {d.open?.toLocaleString()}</span>
-                          </div>
-                          <div className="flex justify-between gap-4">
-                            <span className="text-[var(--text-muted)]">High</span>
-                            <span className="font-mono">Rs {d.high?.toLocaleString()}</span>
-                          </div>
-                          <div className="flex justify-between gap-4">
-                            <span className="text-[var(--text-muted)]">Low</span>
-                            <span className="font-mono">Rs {d.low?.toLocaleString()}</span>
-                          </div>
-                          <div className="flex justify-between gap-4 font-medium">
-                            <span>Close</span>
-                            <span className="font-mono">Rs {d.close?.toLocaleString()}</span>
-                          </div>
-                          {d.volume !== undefined && (
-                            <div className="flex justify-between gap-4 text-[var(--text-muted)]">
-                              <span>Volume</span>
-                              <span className="font-mono">{d.volume?.toLocaleString()}</span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  }}
-                />
-                {chartType === "candlestick" ? (
-                  <Bar
-                    dataKey="high"
-                    shape={<CandlestickShape />}
-                    isAnimationActive={false}
-                  />
-                ) : (
-                  <Line
-                    type="monotone"
-                    dataKey="close"
-                    stroke="#16a34a"
-                    strokeWidth={2}
-                    dot={false}
-                  />
-                )}
-                {indicator === "sma" && (
-                  <>
-                    <Line type="monotone" dataKey="sma20" stroke="#f59e0b" strokeWidth={1.5} dot={false} name="SMA 20" />
-                    <Line type="monotone" dataKey="sma50" stroke="#8b5cf6" strokeWidth={1.5} dot={false} name="SMA 50" />
-                  </>
-                )}
-                {indicator === "ema" && (
-                  <>
-                    <Line type="monotone" dataKey="ema12" stroke="#06b6d4" strokeWidth={1.5} dot={false} name="EMA 12" />
-                    <Line type="monotone" dataKey="ema26" stroke="#ec4899" strokeWidth={1.5} dot={false} name="EMA 26" />
-                  </>
-                )}
-                {indicator === "bb" && (
-                  <>
-                    <Line type="monotone" dataKey="bbUpper" stroke="#8b5cf6" strokeWidth={1} dot={false} strokeDasharray="4 4" name="BB Upper" />
-                    <Line type="monotone" dataKey="bbMiddle" stroke="#8b5cf6" strokeWidth={1} dot={false} name="BB Middle" />
-                    <Line type="monotone" dataKey="bbLower" stroke="#8b5cf6" strokeWidth={1} dot={false} strokeDasharray="4 4" name="BB Lower" />
-                  </>
-                )}
-              </ComposedChart>
-            </ResponsiveContainer>
+            <CandlestickChart data={data} chartType={chartType} indicator={indicator} />
             {indicator === "sma" && (
               <div className="mt-2 flex gap-4 text-xs text-[var(--text-muted)]">
                 <span><span className="inline-block h-2 w-4 rounded bg-amber-500" /> SMA 20</span>
@@ -615,11 +477,6 @@ export default function CompanyPage() {
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
-          </div>
-
-          {/* In-article Ad */}
-          <div className="py-4">
-            <InArticleAd />
           </div>
 
           <div className="rounded-xl border border-[var(--border-primary)] bg-[var(--bg-card)] p-6">

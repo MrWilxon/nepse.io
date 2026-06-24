@@ -2,46 +2,24 @@
 
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { Search, ArrowRight, LayoutDashboard, BarChart3, TrendingUp, GitBranch, FileText, Activity, Zap, Calculator, Bookmark, ArrowUpRight } from "lucide-react";
-
-const PAGES = [
-  { href: "/", label: "Dashboard", icon: LayoutDashboard, category: "Overview" },
-  { href: "/sectors", label: "Sectors", icon: BarChart3, category: "Overview" },
-  { href: "/compare", label: "Compare", icon: BarChart3, category: "Overview" },
-  { href: "/indicators", label: "Indicators", icon: GitBranch, category: "Technical" },
-  { href: "/fibonacci", label: "Fibonacci", icon: TrendingUp, category: "Technical" },
-  { href: "/volume-profile", label: "Volume Profile", icon: BarChart3, category: "Technical" },
-  { href: "/breadth", label: "Market Breadth", icon: Activity, category: "Technical" },
-  { href: "/timeframes", label: "Timeframes", icon: TrendingUp, category: "Technical" },
-  { href: "/patterns", label: "Chart Patterns", icon: Search, category: "Technical" },
-  { href: "/fundamentals", label: "Fundamentals", icon: TrendingUp, category: "Market Data" },
-  { href: "/earnings", label: "Earnings", icon: FileText, category: "Market Data" },
-  { href: "/screener", label: "Stock Screener", icon: Search, category: "Research" },
-  { href: "/backtest", label: "Backtesting", icon: TrendingUp, category: "Research" },
-  { href: "/paper-trading", label: "Paper Trading", icon: Zap, category: "Trading" },
-  { href: "/portfolio", label: "Portfolio", icon: BarChart3, category: "Trading" },
-  { href: "/order-book", label: "Order Depth", icon: BarChart3, category: "Trading" },
-  { href: "/trade-journal", label: "Trade Journal", icon: FileText, category: "Trading" },
-  { href: "/risk-calculator", label: "Risk Calculator", icon: Calculator, category: "Trading" },
-  { href: "/watchlist", label: "Watchlist", icon: Bookmark, category: "Trading" },
-  { href: "/alerts-config", label: "Price Alerts", icon: Bookmark, category: "Trading" },
-  { href: "/announcements", label: "Announcements", icon: FileText, category: "Market Data" },
-  { href: "/mutual-funds", label: "Mutual Funds", icon: BarChart3, category: "Market Data" },
-  { href: "/debentures", label: "Debentures", icon: FileText, category: "Market Data" },
-  { href: "/ipo", label: "IPO / FPO", icon: FileText, category: "Market Data" },
-];
+import { Search, ArrowRight } from "lucide-react";
+import { useI18n } from "@/lib/i18n";
+import { getFlatPages, type FlatPage } from "@/lib/nav-config";
 
 export default function CommandPalette({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
+  const { t } = useI18n();
+
+  const PAGES = useMemo(() => getFlatPages(t), [t]);
 
   const filtered = useMemo(() => {
     if (!query) return PAGES;
     const q = query.toLowerCase();
     return PAGES.filter(p => p.label.toLowerCase().includes(q) || p.category.toLowerCase().includes(q) || p.href.includes(q));
-  }, [query]);
+  }, [query, PAGES]);
 
   useEffect(() => { setSelectedIndex(0); }, [query]);
   useEffect(() => { if (open) { setQuery(""); setTimeout(() => inputRef.current?.focus(), 50); } }, [open]);
@@ -64,7 +42,7 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
     if (!acc[page.category]) acc[page.category] = [];
     acc[page.category].push(page);
     return acc;
-  }, {} as Record<string, typeof PAGES>);
+  }, {} as Record<string, FlatPage[]>);
 
   return (
     <div className="fixed inset-0 z-[90] flex items-start justify-center pt-[15vh]">

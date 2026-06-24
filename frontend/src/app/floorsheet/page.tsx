@@ -18,7 +18,6 @@ import {
 import type { FloorSheetRecord, FloorSheetResponse } from "@/lib/api";
 import { fetchFloorSheet, scrapeFloorSheet } from "@/lib/api";
 import { ErrorBoundary } from "@/components/error-boundary";
-import { InFeedAd } from "@/components/adsense";
 
 const PAGE_SIZE = 50;
 
@@ -161,11 +160,6 @@ export default function FloorSheetPage() {
             </div>
           </div>
         )}
-
-        {/* In-feed Ad */}
-        <div className="py-2">
-          <InFeedAd />
-        </div>
 
         {/* Search + Filter */}
         <div className="flex flex-col gap-4 sm:flex-row">

@@ -103,6 +103,8 @@ export default function FundamentalsPage() {
     return list;
   }, [data, search, selectedSector, selectedGroup, sortField, sortDir]);
 
+  const hasScrapedData = data.some((d) => (d as any)._dataSource === "scraped");
+
   return (
     <div className="space-y-5">
       {/* Header */}
@@ -113,6 +115,12 @@ export default function FundamentalsPage() {
         </h1>
         <p className="text-muted-theme text-sm mt-0.5">Key financial metrics &middot; {data.length} companies &middot; {data[0]?.latestDate || ""}</p>
       </div>
+
+      {!hasScrapedData && data.length > 0 && (
+        <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-400">
+          <span className="font-semibold">Limited data.</span> Showing price-derived metrics only. Run the fundamentals scraper for full financial data.
+        </div>
+      )}
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-3">

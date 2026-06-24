@@ -6,8 +6,8 @@ const { execFile } = require("child_process");
 const fs = require("fs");
 const path = require("path");
 
-const CACHE_DIR = path.join(__dirname, "..", "..", "data", "cache");
-const SCRAPER_DIR = path.join(__dirname, "..", "src", "scrapers");
+const CACHE_DIR = path.join(__dirname, "..", "data", "cache");
+const PROJECT_ROOT = path.join(__dirname, "..");
 const SCRAPER_TIMEOUT = 60000;
 
 // Ensure cache dir exists
@@ -20,14 +20,13 @@ const scraperStatus = {};
 /**
  * Run a Python scraper and return parsed JSON output.
  */
-function runScraper(scriptName, args = [], timeout = SCRAPER_TIMEOUT) {
+function runScraper(scraperName, args = [], timeout = SCRAPER_TIMEOUT) {
   return new Promise((resolve) => {
-    const scriptPath = path.join(SCRAPER_DIR, scriptName);
-    const pythonArgs = [scriptPath, ...args];
+    const pythonArgs = ["-m", "src.scrapers", scraperName, ...args];
 
-    execFile("python", pythonArgs, { timeout, maxBuffer: 10 * 1024 * 1024 }, (err, stdout, stderr) => {
+    execFile("python", pythonArgs, { cwd: PROJECT_ROOT, timeout, maxBuffer: 10 * 1024 * 1024 }, (err, stdout, stderr) => {
       if (err) {
-        console.error(`Scraper ${scriptName} failed:`, err.message);
+        console.error(`Scraper ${scraperName} failed:`, err.message);
         resolve({ error: err.message });
         return;
       }
@@ -42,7 +41,7 @@ function runScraper(scriptName, args = [], timeout = SCRAPER_TIMEOUT) {
           resolve(JSON.parse(stdout));
         }
       } catch (e) {
-        console.error(`Scraper ${scriptName} parse error:`, e.message);
+        console.error(`Scraper ${scraperName} parse error:`, e.message);
         resolve({ error: "Failed to parse scraper output" });
       }
     });
@@ -96,7 +95,7 @@ async function getFundamentals(symbols) {
   }
 
   try {
-    const result = await runScraper("__main__.py", ["fundamentals", ...([])], 120000);
+    const result = await runScraper("fundamentals", symbols || [], 120000);
     if (result && !result.error) {
       writeCache(cacheKey, result);
       updateStatus(cacheKey, true, Object.keys(result).length);
@@ -119,7 +118,7 @@ async function getIPO() {
   }
 
   try {
-    const result = await runScraper("__main__.py", ["ipo"]);
+    const result = await runScraper("ipo");
     if (Array.isArray(result) && result.length > 0 && !result[0]?.error) {
       writeCache(cacheKey, result);
       updateStatus(cacheKey, true, result.length);
@@ -142,7 +141,7 @@ async function getDividends(symbols) {
   }
 
   try {
-    const result = await runScraper("__main__.py", ["dividends"]);
+    const result = await runScraper("dividends");
     if (result && !result.error) {
       writeCache(cacheKey, result);
       updateStatus(cacheKey, true, Object.keys(result).length);
@@ -165,7 +164,7 @@ async function getMutualFunds() {
   }
 
   try {
-    const result = await runScraper("__main__.py", ["mutual_funds"]);
+    const result = await runScraper("mutual_funds");
     if (Array.isArray(result) && result.length > 0 && !result[0]?.error) {
       writeCache(cacheKey, result);
       updateStatus(cacheKey, true, result.length);
@@ -188,7 +187,7 @@ async function getDebentures() {
   }
 
   try {
-    const result = await runScraper("__main__.py", ["debentures"]);
+    const result = await runScraper("debentures");
     if (Array.isArray(result) && result.length > 0 && !result[0]?.error) {
       writeCache(cacheKey, result);
       updateStatus(cacheKey, true, result.length);
@@ -211,7 +210,7 @@ async function getInsiderTrading() {
   }
 
   try {
-    const result = await runScraper("__main__.py", ["insider_trading"]);
+    const result = await runScraper("insider_trading");
     if (Array.isArray(result) && result.length > 0 && !result[0]?.error) {
       writeCache(cacheKey, result);
       updateStatus(cacheKey, true, result.length);
@@ -234,7 +233,7 @@ async function getEarningsCalendar() {
   }
 
   try {
-    const result = await runScraper("__main__.py", ["earnings"]);
+    const result = await runScraper("earnings");
     if (Array.isArray(result) && result.length > 0 && !result[0]?.error) {
       writeCache(cacheKey, result);
       updateStatus(cacheKey, true, result.length);
@@ -245,7 +244,7 @@ async function getEarningsCalendar() {
   }
 
   updateStatus(cacheKey, false, 0);
-  return generateSyntheticEarnings();
+  return [];
 }
 
 async function getBrokers() {
@@ -257,7 +256,7 @@ async function getBrokers() {
   }
 
   try {
-    const result = await runScraper("__main__.py", ["brokers"]);
+    const result = await runScraper("brokers");
     if (Array.isArray(result) && result.length > 0 && !result[0]?.error) {
       writeCache(cacheKey, result);
       updateStatus(cacheKey, true, result.length);
@@ -280,7 +279,7 @@ async function getHoldings(symbols) {
   }
 
   try {
-    const result = await runScraper("__main__.py", ["holdings"]);
+    const result = await runScraper("holdings", symbols);
     if (result && !result.error) {
       writeCache(cacheKey, result);
       updateStatus(cacheKey, true, Object.keys(result).length);
@@ -294,6 +293,29 @@ async function getHoldings(symbols) {
   return generateSyntheticHoldings();
 }
 
+async function getNepseIndex() {
+  const cacheKey = "nepse_index";
+  let data = readCache(cacheKey, 12);
+  if (data) {
+    updateStatus(cacheKey, true, 1);
+    return data;
+  }
+
+  try {
+    const result = await runScraper("nepse_index", [], 60000);
+    if (result && !result.error) {
+      writeCache(cacheKey, result);
+      updateStatus(cacheKey, true, 1);
+      return result;
+    }
+  } catch (e) {
+    console.error("NEPSE index scraper failed:", e.message);
+  }
+
+  updateStatus(cacheKey, false, 0);
+  return { nepseIndex: null, subIndices: [], history: [], _simulated: true };
+}
+
 async function getAnnouncements() {
   const cacheKey = "announcements";
   let data = readCache(cacheKey, 6);
@@ -303,7 +325,7 @@ async function getAnnouncements() {
   }
 
   try {
-    const result = await runScraper("__main__.py", ["announcements"]);
+    const result = await runScraper("announcements");
     if (Array.isArray(result) && result.length > 0 && !result[0]?.error) {
       writeCache(cacheKey, result);
       updateStatus(cacheKey, true, result.length);
@@ -342,38 +364,7 @@ function generateSyntheticInsiderTrading() {
 }
 
 function generateSyntheticEarnings() {
-  const companies = [
-    "NABIL","NIB","SANIMA","NICA","PRVU","GBIME","HBL","EBL","SBI","SCB","MBL","NMB","ADBL","CBL","SBL","KBL","NBB","LBL","NCCB","PCBL","SRBL","CZBIL","BOKL","MEGA","NBL","CCBL",
-    "CORBL","EDBL","GBBL","GRDBL","JBBL","KRBL","KSBBL","LBBL","MDB","MLBL","MNBBL","NABBC","SADBL","SAPDBL","SHBL","SHINE","SINDU",
-    "BFC","CFCL","GFCL","GMFIL","GUFL","ICFC","JFL","MFIL","MPFL","NFS","PFL","PROFL","RLFL","SFCL","SIFC",
-    "CHDC","CIT","HIDCL","NIFRA","NRN",
-    "ALICL","GLICL","JLI","LICN","NLIC","NLICL","PLI","PLIC","RLI","SLI","SLICL","ULI",
-    "AHPC","AKJCL","AKPL","API","BARUN","BPCL","CHCL","CHL","DHPL","GHL","GLH","HDHPC","HPPL","HURJA","JOSHI","KKHC","KPCL","LEC","MEN","MHNL","MKJC","NGPL","NHDL","NHPC","NYADI","PMHPL","PPCL","RADHI","RHPC","RHPL","RRHP","RURU","SAHAS","SHEL","SHPC","SJCL","SPC","SPDL","SSHL","TPC","UMHL","UMRH","UNHPL","UPCL","UPPER",
-    "CGH","OHL","SHL","TRH"
-  ];
-  const now = new Date();
-  const earnings = [];
-  for (const symbol of companies) {
-    const hash = symbol.split("").reduce((a, c) => a + c.charCodeAt(0), 0);
-    for (let m = -1; m <= 2; m++) {
-      const d = new Date(now.getFullYear(), now.getMonth() + m, 1);
-      const day = ((hash + d.getMonth() * 7) % 28) + 1;
-      d.setDate(day);
-      const prevEps = ((hash + d.getMonth()) % 20) + 1;
-      const actualEps = prevEps + (((hash + d.getMonth() * 3) % 10) - 5) * 0.1;
-      const estEps = prevEps + (((hash + d.getMonth() * 5) % 8) - 4) * 0.1;
-      earnings.push({
-        symbol,
-        name: symbol,
-        date: d.toISOString().split("T")[0],
-        estimatedEPS: Math.round(estEps * 100) / 100,
-        actualEPS: Math.round(actualEps * 100) / 100,
-        previousEPS: prevEps,
-        sector: "Other",
-      });
-    }
-  }
-  return earnings;
+  return [];
 }
 
 function generateSyntheticBrokers() {
@@ -399,6 +390,7 @@ module.exports = {
   getBrokers,
   getHoldings,
   getAnnouncements,
+  getNepseIndex,
   scraperStatus,
   runScraper,
 };

@@ -41,6 +41,9 @@ def main():
     elif scraper_name == "announcements":
         from .announcements import scrape_announcements
         data = scrape_announcements(force=force)
+    elif scraper_name == "nepse_index":
+        from .nepse_index import scrape_nepse_index
+        data = scrape_nepse_index(force=force)
     else:
         data = {"error": f"Unknown scraper: {scraper_name}"}
 

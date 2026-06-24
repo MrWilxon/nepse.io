@@ -86,12 +86,20 @@ export default function EarningsPage() {
     else setSelectedMonth((m) => m + 1);
   };
 
+  const isSimulated = earnings.some((e: any) => e._simulated);
+
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-[var(--text-primary)]">Earnings Calendar</h1>
         <p className="mt-1 text-sm text-[var(--text-muted)]">Upcoming and historical earnings reports</p>
       </div>
+
+      {isSimulated && (
+        <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-400">
+          <span className="font-semibold">Simulated data.</span> Earnings dates are estimated, not sourced from official announcements.
+        </div>
+      )}
 
       {/* Upcoming Countdown */}
       {upcoming.length > 0 && (

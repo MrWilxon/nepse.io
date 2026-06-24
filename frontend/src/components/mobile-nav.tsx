@@ -3,18 +3,8 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-  LayoutDashboard, BarChart3, Search, TrendingUp, Bookmark,
-  Wallet, Settings, X, Zap, Menu,
-} from "lucide-react";
-
-const MOBILE_NAV = [
-  { href: "/", label: "Home", icon: LayoutDashboard },
-  { href: "/screener", label: "Screener", icon: Search },
-  { href: "/watchlist", label: "Watchlist", icon: Bookmark },
-  { href: "/portfolio", label: "Portfolio", icon: Wallet },
-  { href: "/settings", label: "More", icon: Settings },
-];
+import { X } from "lucide-react";
+import { MOBILE_NAV_ITEMS, MOBILE_MORE_ITEMS } from "@/lib/nav-config";
 
 export default function MobileNav() {
   const pathname = usePathname();
@@ -25,7 +15,7 @@ export default function MobileNav() {
       {/* Bottom Tab Bar */}
       <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-[var(--border-primary)] bg-[var(--bg-surface)]/95 backdrop-blur-sm lg:hidden safe-area-bottom">
         <div className="flex items-center justify-around px-2 py-1">
-          {MOBILE_NAV.map((item) => {
+          {MOBILE_NAV_ITEMS.map((item) => {
             const isActive = pathname === item.href || (pathname?.startsWith(item.href + "/") && item.href !== "/");
             const Icon = item.icon;
             return (
@@ -57,17 +47,7 @@ export default function MobileNav() {
               </button>
             </div>
             <div className="grid grid-cols-3 gap-3">
-              {[
-                { href: "/sectors", label: "Sectors", icon: BarChart3 },
-                { href: "/compare", label: "Compare", icon: BarChart3 },
-                { href: "/indicators", label: "Indicators", icon: TrendingUp },
-                { href: "/backtest", label: "Backtest", icon: TrendingUp },
-                { href: "/earnings", label: "Earnings", icon: BarChart3 },
-                { href: "/paper-trading", label: "Paper Trading", icon: Zap },
-                { href: "/risk-calculator", label: "Risk Calc", icon: BarChart3 },
-                { href: "/alerts", label: "Signals", icon: TrendingUp },
-                { href: "/export", label: "Export", icon: BarChart3 },
-              ].map((item) => {
+              {MOBILE_MORE_ITEMS.map((item) => {
                 const Icon = item.icon;
                 return (
                   <Link

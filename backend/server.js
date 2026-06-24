@@ -3413,77 +3413,108 @@ app.get("/api/social-sentiment/:symbol", (req, res) => {
   res.json(generateSocialSentiment(symbol));
 });
 
-// --- Top Investor Holdings (Institutional) ---
-function generateInstitutionalHoldings(symbol) {
-  const hash = symbol.split("").reduce((a, c) => a + c.charCodeAt(0), 0);
-  const institutions = [
-    "Nepal Insurance Corp", "Employee Provident Fund", "Citizen Investment Trust",
-    "Rastriya Beema Sansthan", "Nepal Police Welfare Fund", "Nepal Army Welfare Fund",
-    "Muktinath Capital", "Nabil Asset Management", "Sanima Capital", "Kumari Capital",
-    "Laxmi Capital", "Prabhu Capital", "NIB Capital", "NIC Asia Capital",
-  ];
-  const count = 4 + (hash % 8);
-  const used = new Set();
-  const holdings = [];
-  let totalShares = 0;
-  for (let i = 0; i < count; i++) {
-    let idx = (hash + i * 7) % institutions.length;
-    let attempts = 0;
-    while (used.has(idx) && attempts < institutions.length) { idx = (idx + 1) % institutions.length; attempts++; }
-    used.add(idx);
-    const shares = (10000 + ((hash + i * 31) % 500000));
-    const pctChange = ((hash + i * 13) % 20) - 10;
-    const daysAgo = (hash + i * 5) % 90;
-    const date = new Date();
-    date.setDate(date.getDate() - daysAgo);
-    totalShares += shares;
-    holdings.push({
-      institution: institutions[idx],
-      shares,
-      value: shares * (800 + (hash % 1500)),
-      percentage: 0,
-      change: pctChange,
-      lastUpdated: date.toISOString().split("T")[0],
+// --- Broker Holdings (real floorsheet data) ---
+app.get("/api/holdings/aggregated", (req, res) => {
+  try {
+    const floorData = readFloorsheet();
+    if (!floorData.records || floorData.records.length === 0) {
+      return res.json({ stocks: [], brokers: [], sectorFlow: [], summary: { totalStocks: 0, totalBrokers: 0, totalVolume: 0, netSentiment: "neutral" }, source: "empty" });
+    }
+
+    const stockMap = {};
+    const brokerMap = {};
+    const sectorMap = {};
+
+    for (const r of floorData.records) {
+      const s = r.symbol;
+      if (!s) continue;
+      const category = CATEGORY_MAP[s] || "Other";
+      const shortCat = SHORT_CATEGORY_MAP[category] || category;
+
+      if (!stockMap[s]) stockMap[s] = { symbol: s, name: NAME_MAP[s] || s, sector: shortCat, buyQty: 0, sellQty: 0, buyAmt: 0, sellAmt: 0, brokerBuyers: new Set(), brokerSellers: new Set(), trades: 0 };
+      const st = stockMap[s];
+
+      if (r.buyerBroker) {
+        st.buyQty += r.quantity;
+        st.buyAmt += r.amount;
+        st.brokerBuyers.add(r.buyerBroker);
+        st.trades++;
+        if (!brokerMap[r.buyerBroker]) brokerMap[r.buyerBroker] = { brokerNo: r.buyerBroker, buyQty: 0, sellQty: 0, buyAmt: 0, sellAmt: 0, stocks: new Set() };
+        brokerMap[r.buyerBroker].buyQty += r.quantity;
+        brokerMap[r.buyerBroker].buyAmt += r.amount;
+        brokerMap[r.buyerBroker].stocks.add(s);
+      }
+      if (r.sellerBroker) {
+        st.sellQty += r.quantity;
+        st.sellAmt += r.amount;
+        st.brokerSellers.add(r.sellerBroker);
+        st.trades++;
+        if (!brokerMap[r.sellerBroker]) brokerMap[r.sellerBroker] = { brokerNo: r.sellerBroker, buyQty: 0, sellQty: 0, buyAmt: 0, sellAmt: 0, stocks: new Set() };
+        brokerMap[r.sellerBroker].sellQty += r.quantity;
+        brokerMap[r.sellerBroker].sellAmt += r.amount;
+        brokerMap[r.sellerBroker].stocks.add(s);
+      }
+
+      if (!sectorMap[shortCat]) sectorMap[shortCat] = { sector: shortCat, buyQty: 0, sellQty: 0, buyAmt: 0, sellAmt: 0, stocks: 0 };
+      if (r.buyerBroker) { sectorMap[shortCat].buyQty += r.quantity; sectorMap[shortCat].buyAmt += r.amount; }
+      if (r.sellerBroker) { sectorMap[shortCat].sellQty += r.quantity; sectorMap[shortCat].sellAmt += r.amount; }
+    }
+
+    const stocks = Object.values(stockMap).map(s => ({
+      symbol: s.symbol,
+      name: s.name,
+      sector: s.sector,
+      buyQty: s.buyQty,
+      sellQty: s.sellQty,
+      buyAmt: s.buyAmt,
+      sellAmt: s.sellAmt,
+      netQty: s.buyQty - s.sellQty,
+      netAmt: s.buyAmt - s.sellAmt,
+      brokerCount: s.brokerBuyers.size + s.brokerSellers.size,
+      trades: s.trades,
+    })).sort((a, b) => (b.buyAmt + b.sellAmt) - (a.buyAmt + a.sellAmt));
+
+    const brokers = Object.values(brokerMap).map(b => ({
+      brokerNo: b.brokerNo,
+      buyQty: b.buyQty,
+      sellQty: b.sellQty,
+      buyAmt: b.buyAmt,
+      sellAmt: b.sellAmt,
+      netQty: b.buyQty - b.sellQty,
+      netAmt: b.buyAmt - b.sellAmt,
+      stocksTraded: b.stocks.size,
+    })).sort((a, b) => (b.buyAmt + b.sellAmt) - (a.buyAmt + a.sellAmt));
+
+    const sectorFlow = Object.values(sectorMap).map(s => ({
+      sector: s.sector,
+      buyQty: s.buyQty,
+      sellQty: s.sellQty,
+      buyAmt: s.buyAmt,
+      sellAmt: s.sellAmt,
+      netQty: s.buyQty - s.sellQty,
+      netAmt: s.buyAmt - s.sellAmt,
+    })).sort((a, b) => (b.buyAmt + b.sellAmt) - (a.buyAmt + a.sellAmt));
+
+    const totalBuy = stocks.reduce((s, st) => s + st.buyAmt, 0);
+    const totalSell = stocks.reduce((s, st) => s + st.sellAmt, 0);
+    const totalVolume = totalBuy + totalSell;
+    const netBuy = totalBuy - totalSell;
+
+    res.json({
+      stocks,
+      brokers,
+      sectorFlow,
+      summary: {
+        totalStocks: stocks.length,
+        totalBrokers: brokers.length,
+        totalVolume,
+        netBuy,
+        netSell: totalSell,
+        netSentiment: netBuy > 0 ? "bullish" : netBuy < 0 ? "bearish" : "neutral",
+        date: floorData.date,
+      },
+      source: "floorsheet",
     });
-  }
-  const fakeTotalShares = 5000000 + (hash % 10000000);
-  holdings.forEach((h) => { h.percentage = parseFloat(((h.shares / fakeTotalShares) * 100).toFixed(2)); });
-  holdings.sort((a, b) => b.shares - a.shares);
-  const totalValue = holdings.reduce((s, h) => s + h.value, 0);
-  const totalPct = holdings.reduce((s, h) => s + h.percentage, 0);
-  const increasing = holdings.filter((h) => h.change > 0).length;
-  const decreasing = holdings.filter((h) => h.change < 0).length;
-  return { symbol, holdings, summary: { totalInstitutions: count, totalValue, totalPctHeld: parseFloat(totalPct.toFixed(2)), increasing, decreasing, unchanged: count - increasing - decreasing } };
-}
-
-app.get("/api/holdings", async (req, res) => {
-  try {
-    const holdingsData = await dataProvider.getHoldings();
-    if (holdingsData && Array.isArray(holdingsData)) {
-      res.json({ companies: holdingsData.map((h) => ({ symbol: h.symbol, summary: h.summary || h })) });
-    } else {
-      const symbols = Object.keys(CATEGORY_MAP);
-      const results = symbols.map((s) => {
-        const h = generateInstitutionalHoldings(s);
-        return { symbol: s, summary: h.summary };
-      });
-      res.json({ companies: results });
-    }
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.get("/api/holdings/:symbol", async (req, res) => {
-  try {
-    const symbol = req.params.symbol.toUpperCase();
-    const holdingsData = await dataProvider.getHoldings();
-    if (holdingsData && Array.isArray(holdingsData)) {
-      const found = holdingsData.find((h) => h.symbol === symbol);
-      if (found) return res.json(found);
-    }
-    if (!CATEGORY_MAP[symbol]) return res.status(404).json({ error: "Company not found" });
-    res.json(generateInstitutionalHoldings(symbol));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

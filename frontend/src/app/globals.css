@@ -513,3 +513,74 @@ body {
 /* Focus variants */
 .focus\:border-accent-theme:focus { border-color: var(--accent); }
 .focus\:ring-accent-theme:focus { --tw-ring-color: var(--accent); }
+
+/* ═══════════════════════════════════════════════════════════ */
+/* React Grid Layout — Dashboard Config                      */
+/* ═══════════════════════════════════════════════════════════ */
+.react-grid-layout {
+  position: relative;
+  transition: height 200ms ease;
+}
+
+.react-grid-item {
+  transition: all 200ms ease;
+  transition-property: left, top, width, height;
+}
+
+.react-grid-item.cssTransforms {
+  transition-property: transform, width, height;
+}
+
+.react-grid-item.resizing {
+  z-index: 1;
+  will-change: width, height;
+  opacity: 0.9;
+}
+
+.react-grid-item.react-draggable-dragging {
+  transition: none;
+  z-index: 3;
+  will-change: transform;
+  opacity: 0.85;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+}
+
+.react-grid-item > .react-resizable-handle {
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  bottom: 0;
+  right: 0;
+  cursor: se-resize;
+  background: none;
+}
+
+.react-grid-item > .react-resizable-handle::after {
+  content: "";
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid var(--border);
+  border-bottom: 2px solid var(--border);
+  border-radius: 0 0 2px 0;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.react-grid-item:hover > .react-resizable-handle::after {
+  opacity: 1;
+}
+
+.react-grid-item.resizing > .react-resizable-handle::after {
+  opacity: 1;
+  border-color: var(--accent);
+}
+
+.react-grid-placeholder {
+  background: var(--accent) !important;
+  opacity: 0.12 !important;
+  border-radius: 12px !important;
+  transition: all 200ms ease !important;
+}

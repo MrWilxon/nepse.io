@@ -154,7 +154,6 @@ function getNavCategories(t: (key: string) => string): NavCategory[] {
         { href: "/holdings", label: t("nav.institutionalHoldings"), icon: Building2 },
         { href: "/tax-report", label: t("nav.taxReport"), icon: Calculator },
         { href: "/export", label: t("nav.dataExport"), icon: Download },
-        { href: "/dashboard-config", label: t("nav.dashboardSettings"), icon: LayoutGrid },
       ],
     },
   ];

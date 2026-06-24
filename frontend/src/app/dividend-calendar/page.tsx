@@ -42,19 +42,7 @@ export default function DividendCalendarPage() {
     fetch(`${API_BASE}/api/dividend-calendar`)
       .then((r) => r.json())
       .then((data) => {
-        if (data.length > 0) {
-          setDividends(data);
-        } else {
-          const mockDividends: DividendRecord[] = [
-            { symbol: "NABIL", name: "Nabil Bank", announceDate: "2025-01-15", exDate: "2025-02-10", recordDate: "2025-02-12", paymentDate: "2025-03-15", dividendPerShare: 42, dividendYield: 3.4, type: "cash", sector: "Banking", consecutiveYears: 8, growthRate: 12 },
-            { symbol: "SCB", name: "Standard Chartered", announceDate: "2025-01-20", exDate: "2025-02-15", recordDate: "2025-02-17", paymentDate: "2025-03-20", dividendPerShare: 38, dividendYield: 4.2, type: "cash", sector: "Banking", consecutiveYears: 10, growthRate: 8 },
-            { symbol: "EBL", name: "Everest Bank", announceDate: "2025-02-01", exDate: "2025-02-25", recordDate: "2025-02-27", paymentDate: "2025-03-28", dividendPerShare: 35, dividendYield: 3.1, type: "cash", sector: "Banking", consecutiveYears: 6, growthRate: 15 },
-            { symbol: "NICA", name: "NIC Asia", announceDate: "2025-02-05", exDate: "2025-03-01", recordDate: "2025-03-03", paymentDate: "2025-04-01", dividendPerShare: 28, dividendYield: 6.8, type: "bonus", sector: "Banking", consecutiveYears: 4, growthRate: 20 },
-            { symbol: "SANIMA", name: "Sanima Bank", announceDate: "2025-02-10", exDate: "2025-03-05", recordDate: "2025-03-07", paymentDate: "2025-04-05", dividendPerShare: 22, dividendYield: 3.5, type: "cash", sector: "Banking", consecutiveYears: 5, growthRate: 10 },
-            { symbol: "HEI", name: "Hydro Energy", announceDate: "2025-01-25", exDate: "2025-02-20", recordDate: "2025-02-22", paymentDate: "2025-03-22", dividendPerShare: 15, dividendYield: 1.0, type: "cash", sector: "Hydropower", consecutiveYears: 3, growthRate: 5 },
-          ];
-          setDividends(mockDividends);
-        }
+        setDividends(data);
         setLoading(false);
       })
       .catch(() => setLoading(false));

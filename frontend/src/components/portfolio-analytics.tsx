@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid, LineChart, Line } from "recharts";
-import { Wallet, TrendingUp, TrendingDown, PieChart as PieIcon, BarChart3, Target } from "lucide-react";
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts";
+import { Wallet, TrendingUp, TrendingDown, PieChart as PieIcon, Target } from "lucide-react";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -33,13 +33,7 @@ function loadHoldings(): Holding[] {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) return JSON.parse(saved);
   } catch {}
-  return [
-    { symbol: "NABIL", shares: 50, avgPrice: 1100, currentPrice: 1245, sector: "Banking" },
-    { symbol: "EBL", shares: 30, avgPrice: 450, currentPrice: 520, sector: "Banking" },
-    { symbol: "SCB", shares: 40, avgPrice: 900, currentPrice: 892, sector: "Banking" },
-    { symbol: "HEI", shares: 20, avgPrice: 1400, currentPrice: 1520, sector: "Hydropower" },
-    { symbol: "NTC", shares: 25, avgPrice: 950, currentPrice: 980, sector: "Telecom" },
-  ];
+  return [];
 }
 
 export default function PortfolioAnalytics() {
@@ -52,14 +46,13 @@ export default function PortfolioAnalytics() {
   const stats: PortfolioStats = useMemo(() => {
     const totalValue = holdings.reduce((s, h) => s + h.shares * h.currentPrice, 0);
     const totalInvested = holdings.reduce((s, h) => s + h.shares * h.avgPrice, 0);
-    const dayChange = holdings.reduce((s, h) => s + h.shares * (h.currentPrice * 0.01 * (Math.random() - 0.5)), 0);
     return {
       totalValue,
       totalInvested,
       totalPnL: totalValue - totalInvested,
       totalPnLPercent: totalInvested ? ((totalValue - totalInvested) / totalInvested) * 100 : 0,
-      dayChange,
-      dayChangePercent: totalValue ? (dayChange / totalValue) * 100 : 0,
+      dayChange: 0,
+      dayChangePercent: 0,
     };
   }, [holdings]);
 
@@ -80,20 +73,6 @@ export default function PortfolioAnalytics() {
       pnlPercent: ((h.currentPrice - h.avgPrice) / h.avgPrice) * 100,
     }));
   }, [holdings]);
-
-  const benchmarkData = useMemo(() => {
-    return Array.from({ length: 30 }, (_, i) => {
-      const date = new Date();
-      date.setDate(date.getDate() - (29 - i));
-      const portfolioReturn = stats.totalPnLPercent * (i / 30) + (Math.random() - 0.5) * 2;
-      const marketReturn = stats.totalPnLPercent * 0.6 * (i / 30) + (Math.random() - 0.5) * 3;
-      return {
-        date: date.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
-        Portfolio: Number(portfolioReturn.toFixed(2)),
-        Market: Number(marketReturn.toFixed(2)),
-      };
-    });
-  }, [stats]);
 
   return (
     <div className="space-y-6">
@@ -183,22 +162,6 @@ export default function PortfolioAnalytics() {
           </div>
         </div>
 
-        {/* Performance vs Benchmark */}
-        <div className="card-3d p-6">
-          <h2 className="mb-4 flex items-center gap-2 text-sm font-medium text-[var(--text-muted)]">
-            <BarChart3 className="h-4 w-4 text-[var(--accent)]" /> Performance vs Market
-          </h2>
-          <ResponsiveContainer width="100%" height={200}>
-            <LineChart data={benchmarkData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--border-primary)" />
-              <XAxis dataKey="date" tick={{ fontSize: 9, fill: "var(--text-dim)" }} />
-              <YAxis tick={{ fontSize: 9, fill: "var(--text-dim)" }} tickFormatter={(v) => `${v}%`} />
-              <Tooltip contentStyle={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border-primary)", borderRadius: "0.5rem", color: "var(--text-primary)" }} />
-              <Line type="monotone" dataKey="Portfolio" stroke="#D4A017" strokeWidth={2} dot={false} />
-              <Line type="monotone" dataKey="Market" stroke="#3b82f6" strokeWidth={2} dot={false} strokeDasharray="5 5" />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
       </div>
 
       {/* Holdings Table */}

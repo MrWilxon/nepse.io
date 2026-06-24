@@ -55,19 +55,7 @@ export default function EarningsPage() {
         previousEPS: e.previousEPS,
         sector: e.sector || companies.find((c: any) => c.symbol === e.symbol)?.sector || "Other",
       }));
-      if (enriched.length === 0) {
-        const mockEarnings = companies.slice(0, 15).map((c: any, i: number) => ({
-          symbol: c.symbol,
-          name: c.name || c.symbol,
-          date: new Date(Date.now() + (i * 2 + 1) * 86400000).toISOString().split("T")[0],
-          estimatedEPS: Math.round(Math.random() * 50 + 5),
-          previousEPS: Math.round(Math.random() * 40 + 5),
-          sector: c.sector || c.category || "Other",
-        }));
-        setEarnings(mockEarnings);
-      } else {
-        setEarnings(enriched);
-      }
+      setEarnings(enriched);
       setLoading(false);
     }).catch(() => setLoading(false));
   }, []);

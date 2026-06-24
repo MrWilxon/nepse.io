@@ -14,7 +14,6 @@ import {
   ArrowRightLeft,
   AlertTriangle,
   Settings,
-  X,
 } from "lucide-react";
 import {
   BarChart,
@@ -60,7 +59,7 @@ export default function Home() {
   const [connectionError, setConnectionError] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
 
-  const { widgets, enabled: enabledWidgets, toggleWidget, moveWidget } =
+  const { widgets, enabled: enabledWidgets, toggleWidget, moveWidget, resetWidgets, reorderWidgets, applyTemplate } =
     useDashboardWidgets();
 
   useEffect(() => {
@@ -144,18 +143,17 @@ export default function Home() {
           </button>
         </div>
 
-        {/* Widget Settings */}
-        {showSettings && (
-          <div className="relative">
-            <WidgetSettings widgets={widgets} toggleWidget={toggleWidget} moveWidget={moveWidget} />
-            <button
-              onClick={() => setShowSettings(false)}
-              className="absolute top-2 right-2 text-muted-theme hover:text-primary-theme"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-        )}
+        {/* Widget Settings Panel */}
+        <WidgetSettings
+          widgets={widgets}
+          toggleWidget={toggleWidget}
+          moveWidget={moveWidget}
+          open={showSettings}
+          onClose={() => setShowSettings(false)}
+          onReset={resetWidgets}
+          onReorder={reorderWidgets}
+          onApplyTemplate={applyTemplate}
+        />
 
         {/* ═══════════════════════════════════════════════════ */}
         {/* SECTION 1: Market Snapshot Hero                     */}

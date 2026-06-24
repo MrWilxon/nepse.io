@@ -45,6 +45,8 @@ export default function CorrelationPage() {
   const [selected, setSelected] = useState<string[]>([]);
   const [hoveredCell, setHoveredCell] = useState<{ row: string; col: string; value: number } | null>(null);
 
+  const [priceChanges, setPriceChanges] = useState<Record<string, number[]>>({});
+
   useEffect(() => {
     fetch(`${API_BASE}/api/companies`)
       .then((r) => r.json())
@@ -57,23 +59,30 @@ export default function CorrelationPage() {
       .catch(() => setLoading(false));
   }, []);
 
-  const priceChanges = useMemo(() => {
+  useEffect(() => {
+    if (selected.length === 0) return;
     const changes: Record<string, number[]> = {};
+    let loaded = 0;
     selected.forEach((sym) => {
-      const company = companies.find((c) => c.symbol === sym);
-      if (company) {
-        const base = company.ltp / (1 + company.percentChange / 100);
-        changes[sym] = [
-          company.percentChange,
-          company.percentChange * 0.8 + (Math.random() - 0.5) * 2,
-          company.percentChange * 0.6 + (Math.random() - 0.5) * 3,
-          company.percentChange * 0.4 + (Math.random() - 0.5) * 4,
-          company.percentChange * 0.2 + (Math.random() - 0.5) * 5,
-        ];
-      }
+      fetch(`${API_BASE}/api/historical/${sym}`)
+        .then((r) => r.json())
+        .then((data) => {
+          if (Array.isArray(data) && data.length >= 2) {
+            const closes = data.slice(-30).map((d: any) => parseFloat(d.close || d.Close || "0")).filter((v) => v > 0);
+            if (closes.length >= 2) {
+              const pctChanges = [];
+              for (let i = 1; i < closes.length; i++) {
+                pctChanges.push(((closes[i] - closes[i - 1]) / closes[i - 1]) * 100);
+              }
+              changes[sym] = pctChanges;
+            }
+          }
+          loaded++;
+          if (loaded === selected.length) setPriceChanges({ ...changes });
+        })
+        .catch(() => { loaded++; if (loaded === selected.length) setPriceChanges({ ...changes }); });
     });
-    return changes;
-  }, [selected, companies]);
+  }, [selected]);
 
   const correlationMatrix = useMemo(() => {
     const matrix: Record<string, Record<string, number>> = {};

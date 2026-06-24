@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import Link from "next/link";
 import {
   GripVertical,
@@ -10,6 +10,8 @@ import {
   Star,
   ChevronLeft,
   ChevronRight,
+  ChevronUp,
+  ChevronDown,
   Calendar,
   TrendingUp,
   TrendingDown,
@@ -29,6 +31,11 @@ import {
   BookOpen,
   LineChart,
   BarChart3,
+  RotateCcw,
+  X,
+  Sparkles,
+  LayoutGrid,
+  LayoutDashboard,
 } from "lucide-react";
 import { safeFetch, API_BASE } from "@/lib/api";
 import type { CompanySummary } from "@/lib/api";
@@ -93,85 +100,246 @@ export function useDashboardWidgets() {
     save([...sorted]);
   };
 
+  const resetWidgets = () => {
+    setWidgets(DEFAULT_WIDGETS);
+    localStorage.removeItem("nepse_dashboard_widgets_v2");
+  };
+
+  const reorderWidgets = (fromIndex: number, toIndex: number) => {
+    const sorted = [...widgets].sort((a, b) => a.order - b.order);
+    const [moved] = sorted.splice(fromIndex, 1);
+    sorted.splice(toIndex, 0, moved);
+    const reordered = sorted.map((w, i) => ({ ...w, order: i }));
+    setWidgets(reordered);
+    localStorage.setItem("nepse_dashboard_widgets_v2", JSON.stringify(reordered));
+  };
+
+  const applyTemplate = (template: DashboardWidget[]) => {
+    setWidgets(template);
+    localStorage.setItem("nepse_dashboard_widgets_v2", JSON.stringify(template));
+  };
+
   const enabled = widgets.filter((w) => w.enabled).sort((a, b) => a.order - b.order);
-  return { widgets, enabled, toggleWidget, moveWidget };
+  return { widgets, enabled, toggleWidget, moveWidget, resetWidgets, reorderWidgets, applyTemplate };
 }
 
 export function WidgetSettings({
   widgets,
   toggleWidget,
   moveWidget,
+  open,
+  onClose,
+  onReset,
+  onReorder,
+  onApplyTemplate,
 }: {
   widgets: DashboardWidget[];
   toggleWidget: (id: string) => void;
   moveWidget: (id: string, dir: -1 | 1) => void;
+  open: boolean;
+  onClose: () => void;
+  onReset: () => void;
+  onReorder: (fromIndex: number, toIndex: number) => void;
+  onApplyTemplate?: (template: DashboardWidget[]) => void;
 }) {
-  const sections = [
-    { label: "Market Overview", ids: ["snapshot", "quick-actions"] },
-    { label: "Charts & Analysis", ids: ["breadth", "sectors", "rotation"] },
-    { label: "Stocks & Movers", ids: ["hot", "watchlist", "companies"] },
-    { label: "Events & News", ids: ["events", "news", "holidays"] },
-    { label: "Brokers & Trading", ids: ["brokers-snapshot", "floor-trades"] },
+  const [draggedId, setDraggedId] = useState<string | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
+  const [showTemplates, setShowTemplates] = useState(false);
+
+  const sorted = [...widgets].sort((a, b) => a.order - b.order);
+  const enabledCount = widgets.filter((w) => w.enabled).length;
+
+  // Layout templates
+  const templates = [
+    {
+      name: "Default",
+      description: "Balanced market overview",
+      icon: LayoutDashboard,
+      widgets: DEFAULT_WIDGETS,
+    },
+    {
+      name: "Market Focus",
+      description: "Chart and sectors front and center",
+      icon: BarChart3,
+      widgets: DEFAULT_WIDGETS.map((w) => {
+        if (w.id === "breadth") return { ...w, enabled: true, order: 0 };
+        if (w.id === "sectors") return { ...w, enabled: true, order: 1 };
+        if (w.id === "snapshot") return { ...w, enabled: true, order: 2 };
+        if (w.id === "hot") return { ...w, enabled: true, order: 3 };
+        return { ...w, enabled: false };
+      }),
+    },
+    {
+      name: "Minimal",
+      description: "Essentials only — clean and simple",
+      icon: LayoutGrid,
+      widgets: DEFAULT_WIDGETS.map((w) => {
+        if (["overview", "snapshot", "quick-actions", "hot", "companies"].includes(w.id))
+          return { ...w, enabled: true };
+        return { ...w, enabled: false };
+      }),
+    },
   ];
 
+  const handleDragStart = useCallback((id: string) => {
+    setDraggedId(id);
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent, id: string) => {
+    e.preventDefault();
+    setDragOverId(id);
+  }, []);
+
+  const handleDrop = useCallback(
+    (targetId: string) => {
+      if (!draggedId || draggedId === targetId) {
+        setDraggedId(null);
+        setDragOverId(null);
+        return;
+      }
+      const fromIdx = sorted.findIndex((w) => w.id === draggedId);
+      const toIdx = sorted.findIndex((w) => w.id === targetId);
+      if (fromIdx !== -1 && toIdx !== -1) {
+        onReorder(fromIdx, toIdx);
+      }
+      setDraggedId(null);
+      setDragOverId(null);
+    },
+    [draggedId, sorted, onReorder]
+  );
+
+  const handleDragEnd = useCallback(() => {
+    setDraggedId(null);
+    setDragOverId(null);
+  }, []);
+
+  if (!open) return null;
+
   return (
-    <div className="card-3d p-4">
-      <div className="flex items-center gap-2 mb-4">
-        <Settings className="h-3.5 w-3.5 text-accent-theme" />
-        <h3 className="text-xs font-bold text-primary-theme uppercase tracking-wider">
-          Customize Dashboard
-        </h3>
-      </div>
-      <div className="space-y-4">
-        {sections.map((section) => (
-          <div key={section.label}>
-            <div className="text-[10px] font-semibold text-muted-theme uppercase tracking-wider mb-2 px-1">
-              {section.label}
-            </div>
-            <div className="space-y-1">
-              {section.ids
-                .map((id) => widgets.find((w) => w.id === id))
-                .filter(Boolean)
-                .map((w) => {
-                  const idx = widgets
-                    .sort((a, b) => a.order - b.order)
-                    .findIndex((x) => x.id === w!.id);
-                  return (
-                    <div
-                      key={w!.id}
-                      className="flex items-center gap-2 py-1.5 px-2 rounded-lg hover:bg-hover-theme group"
-                    >
-                      <GripVertical className="h-3.5 w-3.5 text-muted-theme opacity-0 group-hover:opacity-100 transition-opacity" />
-                      <button
-                        onClick={() => moveWidget(w!.id, -1)}
-                        className="text-[10px] text-muted-theme hover:text-primary-theme disabled:opacity-30"
-                        disabled={idx === 0}
-                      >
-                        ▲
-                      </button>
-                      <button
-                        onClick={() => moveWidget(w!.id, 1)}
-                        className="text-[10px] text-muted-theme hover:text-primary-theme disabled:opacity-30"
-                        disabled={idx === widgets.length - 1}
-                      >
-                        ▼
-                      </button>
-                      <span className="flex-1 text-xs text-body-theme">{w!.label}</span>
-                      <button onClick={() => toggleWidget(w!.id)}>
-                        {w!.enabled ? (
-                          <Eye className="h-3.5 w-3.5 text-accent-theme" />
-                        ) : (
-                          <EyeOff className="h-3.5 w-3.5 text-muted-theme" />
-                        )}
-                      </button>
-                    </div>
-                  );
-                })}
-            </div>
+    <>
+      {/* Overlay */}
+      <div
+        className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm transition-opacity"
+        onClick={onClose}
+      />
+
+      {/* Slide-over Panel */}
+      <div className="fixed inset-y-0 right-0 z-50 w-full max-w-md flex flex-col bg-surface border-l border-theme shadow-2xl">
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-theme flex-shrink-0">
+          <div>
+            <h2 className="text-base font-bold text-primary-theme">Customize Dashboard</h2>
+            <p className="text-xs text-muted-theme mt-0.5">
+              {enabledCount} of {widgets.length} visible · Drag to reorder
+            </p>
           </div>
-        ))}
+          <button
+            onClick={onClose}
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-theme hover:text-primary-theme hover:bg-hover-theme transition-colors"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        {/* Templates Bar */}
+        <div className="px-5 py-3 border-b border-theme bg-input-theme/30 flex-shrink-0">
+          <button
+            onClick={() => setShowTemplates(!showTemplates)}
+            className="flex items-center gap-2 text-xs font-medium text-accent-theme hover:text-[#E8B830] transition-colors"
+          >
+            <Sparkles className="h-3.5 w-3.5" />
+            {showTemplates ? "Hide templates" : "Layout templates"}
+          </button>
+          {showTemplates && (
+            <div className="grid grid-cols-3 gap-2 mt-3">
+              {templates.map((t) => {
+                const Icon = t.icon;
+                return (
+                  <button
+                    key={t.name}
+                    onClick={() => {
+                      onApplyTemplate?.(t.widgets);
+                      setShowTemplates(false);
+                    }}
+                    className="p-2.5 rounded-lg border border-theme bg-input-theme hover:bg-hover-theme hover:border-accent-theme/30 transition-all text-left"
+                  >
+                    <Icon className="h-4 w-4 text-accent-theme mb-1.5" />
+                    <div className="text-[10px] font-semibold text-primary-theme">{t.name}</div>
+                    <div className="text-[9px] text-muted-theme leading-tight">{t.description}</div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Widget List — Drag and Drop */}
+        <div className="flex-1 overflow-y-auto px-5 py-4">
+          <div className="space-y-2">
+            {sorted.map((w, idx) => {
+              const isDragging = draggedId === w.id;
+              const isDragOver = dragOverId === w.id;
+
+              return (
+                <div
+                  key={w.id}
+                  draggable
+                  onDragStart={() => handleDragStart(w.id)}
+                  onDragOver={(e) => handleDragOver(e, w.id)}
+                  onDrop={() => handleDrop(w.id)}
+                  onDragEnd={handleDragEnd}
+                  className={`flex items-center gap-3 p-3 rounded-xl border transition-all cursor-grab active:cursor-grabbing ${
+                    isDragging
+                      ? "opacity-40 scale-95 border-dashed border-accent-theme"
+                      : isDragOver
+                      ? "border-accent-theme bg-accent-theme/10 scale-[1.02]"
+                      : w.enabled
+                      ? "bg-accent-theme/5 border-accent-theme/20 hover:border-accent-theme/40"
+                      : "bg-input-theme border-theme opacity-60 hover:opacity-80"
+                  }`}
+                >
+                  {/* Drag Handle */}
+                  <GripVertical className="h-4 w-4 text-muted-theme/50 flex-shrink-0" />
+
+                  {/* Widget Info */}
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium text-primary-theme">{w.label}</div>
+                  </div>
+
+                  {/* Toggle Switch */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleWidget(w.id);
+                    }}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors flex-shrink-0 ${
+                      w.enabled ? "bg-accent-theme" : "bg-hover-theme"
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+                        w.enabled ? "translate-x-6" : "translate-x-1"
+                      }`}
+                    />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="px-5 py-4 border-t border-theme flex-shrink-0">
+          <button
+            onClick={onReset}
+            className="w-full flex items-center justify-center gap-2 rounded-lg border border-theme bg-input-theme px-4 py-2.5 text-sm font-medium text-body-theme hover:bg-hover-theme transition-colors"
+          >
+            <RotateCcw className="h-4 w-4" />
+            Reset to Default
+          </button>
+        </div>
       </div>
-    </div>
+    </>
   );
 }
 

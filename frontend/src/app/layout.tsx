@@ -110,10 +110,6 @@ function getNavCategories(t: (key: string) => string): NavCategory[] {
       items: [
         { href: "/fundamentals", label: t("nav.fundamentals"), icon: TrendingUp },
         { href: "/earnings", label: t("nav.earnings"), icon: FileText },
-        { href: "/options", label: t("nav.options"), icon: GitBranch },
-        { href: "/mutual-funds", label: t("nav.mutualFunds"), icon: BarChart3 },
-        { href: "/debentures", label: t("nav.debentures"), icon: FileText },
-        { href: "/insider-trading", label: t("nav.insiderTrading"), icon: AlertTriangle },
         { href: "/brokers", label: "Top Brokers", icon: Users },
         { href: "/brokers/analysis", label: "Broker Analysis", icon: Activity },
         { href: "/floorsheet", label: "Floor Sheet", icon: FileText },

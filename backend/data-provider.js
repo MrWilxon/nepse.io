@@ -7,7 +7,7 @@ const fs = require("fs");
 const path = require("path");
 
 const CACHE_DIR = path.join(__dirname, "..", "..", "data", "cache");
-const SCRAPER_DIR = path.join(__dirname, "..", "scrapers");
+const SCRAPER_DIR = path.join(__dirname, "..", "src", "scrapers");
 const SCRAPER_TIMEOUT = 60000;
 
 // Ensure cache dir exists
@@ -342,7 +342,38 @@ function generateSyntheticInsiderTrading() {
 }
 
 function generateSyntheticEarnings() {
-  return [];
+  const companies = [
+    "NABIL","NIB","SANIMA","NICA","PRVU","GBIME","HBL","EBL","SBI","SCB","MBL","NMB","ADBL","CBL","SBL","KBL","NBB","LBL","NCCB","PCBL","SRBL","CZBIL","BOKL","MEGA","NBL","CCBL",
+    "CORBL","EDBL","GBBL","GRDBL","JBBL","KRBL","KSBBL","LBBL","MDB","MLBL","MNBBL","NABBC","SADBL","SAPDBL","SHBL","SHINE","SINDU",
+    "BFC","CFCL","GFCL","GMFIL","GUFL","ICFC","JFL","MFIL","MPFL","NFS","PFL","PROFL","RLFL","SFCL","SIFC",
+    "CHDC","CIT","HIDCL","NIFRA","NRN",
+    "ALICL","GLICL","JLI","LICN","NLIC","NLICL","PLI","PLIC","RLI","SLI","SLICL","ULI",
+    "AHPC","AKJCL","AKPL","API","BARUN","BPCL","CHCL","CHL","DHPL","GHL","GLH","HDHPC","HPPL","HURJA","JOSHI","KKHC","KPCL","LEC","MEN","MHNL","MKJC","NGPL","NHDL","NHPC","NYADI","PMHPL","PPCL","RADHI","RHPC","RHPL","RRHP","RURU","SAHAS","SHEL","SHPC","SJCL","SPC","SPDL","SSHL","TPC","UMHL","UMRH","UNHPL","UPCL","UPPER",
+    "CGH","OHL","SHL","TRH"
+  ];
+  const now = new Date();
+  const earnings = [];
+  for (const symbol of companies) {
+    const hash = symbol.split("").reduce((a, c) => a + c.charCodeAt(0), 0);
+    for (let m = -1; m <= 2; m++) {
+      const d = new Date(now.getFullYear(), now.getMonth() + m, 1);
+      const day = ((hash + d.getMonth() * 7) % 28) + 1;
+      d.setDate(day);
+      const prevEps = ((hash + d.getMonth()) % 20) + 1;
+      const actualEps = prevEps + (((hash + d.getMonth() * 3) % 10) - 5) * 0.1;
+      const estEps = prevEps + (((hash + d.getMonth() * 5) % 8) - 4) * 0.1;
+      earnings.push({
+        symbol,
+        name: symbol,
+        date: d.toISOString().split("T")[0],
+        estimatedEPS: Math.round(estEps * 100) / 100,
+        actualEPS: Math.round(actualEps * 100) / 100,
+        previousEPS: prevEps,
+        sector: "Other",
+      });
+    }
+  }
+  return earnings;
 }
 
 function generateSyntheticBrokers() {

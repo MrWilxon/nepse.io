@@ -1041,34 +1041,7 @@ app.get("/api/dividends/:symbol", (req, res) => {
   res.json({ symbol, category, dividends });
 });
 app.get("/api/ipo", (req, res) => {
-  const ipoData = [
-    { symbol: "HRL", name: "Himalaya Rice Ltd", sector: "Agro/Food", issuePrice: 100, issueDate: "2025-01-15", status: "Listed", lots: 10, price: 125.5, change: 2.3 },
-    { symbol: "SKBBL", name: "Sunrise Kupondole Bank", sector: "Commercial Bank", issuePrice: 100, issueDate: "2024-11-20", status: "Listed", lots: 20, price: 112.0, change: -1.2 },
-    { symbol: "UPCL", name: "Upper Power Company", sector: "Hydropower", issuePrice: 100, issueDate: "2025-03-05", status: "Listed", lots: 5, price: 98.5, change: -0.8 },
-    { symbol: "KMCDB", name: "Kathmandu Metropolitan Commercial", sector: "Commercial Bank", issuePrice: 100, issueDate: "2024-08-10", status: "Listed", lots: 15, price: 118.0, change: 3.1 },
-    { symbol: "NBIL", name: "Nepal Bilash Industries", sector: "Manufacturing", issuePrice: 100, issueDate: "2025-04-22", status: "Listed", lots: 8, price: 105.0, change: 0.5 },
-    { symbol: "TPC", name: "Trishuli Power Corporation", sector: "Hydropower", issuePrice: 100, issueDate: "2024-12-01", status: "Listed", lots: 12, price: 95.0, change: -2.1 },
-    { symbol: "MHL", name: "Mountain Helpline Services", sector: "Tourism/Hospitality", issuePrice: 100, issueDate: "2025-02-10", status: "Listed", lots: 6, price: 132.0, change: 5.2 },
-    { symbol: "GBPBL", name: "Gautam Buddha Power Bank", sector: "Development Bank", issuePrice: 100, issueDate: "2024-09-15", status: "Listed", lots: 18, price: 108.5, change: 1.8 },
-    { symbol: "NLGL", name: "Nepal Life General Insurance", sector: "Non-Life Insurance", issuePrice: 100, issueDate: "2025-05-01", status: "Listed", lots: 25, price: 115.0, change: 1.0 },
-    { symbol: "AKPL", name: "Arun Kabeli Power", sector: "Hydropower", issuePrice: 100, issueDate: "2024-07-20", status: "Listed", lots: 14, price: 102.0, change: 0.3 },
-    { symbol: "BNLICL", name: "Buddha Nepal Life Insurance", sector: "Life Insurance", issuePrice: 100, issueDate: "2025-06-12", status: "Listed", lots: 22, price: 120.0, change: 2.8 },
-    { symbol: "SMFCL", name: "Sagarmatha Microfinance", sector: "Finance", issuePrice: 100, issueDate: "2024-10-05", status: "Listed", lots: 10, price: 97.0, change: -1.5 },
-    { symbol: "KBL", name: "Kumari Bank", sector: "Commercial Bank", issuePrice: 100, issueDate: "2023-06-15", status: "Listed", lots: 20, price: 142.0, change: 4.2 },
-    { symbol: "MPFL", name: "Miteri Prime Finance", sector: "Finance", issuePrice: 100, issueDate: "2023-09-20", status: "Listed", lots: 8, price: 88.0, change: -3.2 },
-    { symbol: "NHPC", name: "NHPC Nepal Hydropower", sector: "Hydropower", issuePrice: 100, issueDate: "2023-11-10", status: "Listed", lots: 15, price: 110.0, change: 1.5 },
-    { symbol: "ULI", name: "UnitedLife Insurance", sector: "Life Insurance", issuePrice: 100, issueDate: "2023-08-25", status: "Listed", lots: 12, price: 135.0, change: 3.5 },
-    { symbol: "RADHI", name: "Radhi Hydropower", sector: "Hydropower", issuePrice: 100, issueDate: "2024-01-18", status: "Listed", lots: 7, price: 92.0, change: -0.5 },
-    { symbol: "GLH", name: "Gorkha Laghu Hydropower", sector: "Hydropower", issuePrice: 100, issueDate: "2024-03-30", status: "Listed", lots: 5, price: 78.0, change: -5.0 },
-    { symbol: "SANIMA", name: "Sanima Bank", sector: "Commercial Bank", issuePrice: 100, issueDate: "2022-04-15", status: "Listed", lots: 30, price: 165.0, change: 6.1 },
-    { symbol: "NRN", name: "NRN Infrastructure", sector: "Investment", issuePrice: 100, issueDate: "2024-05-20", status: "Listed", lots: 10, price: 105.5, change: 0.8 },
-    { symbol: "MEN", name: "Mountain Energy Nepal", sector: "Hydropower", issuePrice: 100, issueDate: "2025-07-01", status: "Upcoming", lots: 0, price: 100, change: 0 },
-    { symbol: "BPCL", name: "Bhotenamlang Power", sector: "Hydropower", issuePrice: 100, issueDate: "2025-08-15", status: "Upcoming", lots: 0, price: 100, change: 0 },
-    { symbol: "GHL", name: "Green Hills Hydropower", sector: "Hydropower", issuePrice: 100, issueDate: "2025-09-10", status: "Upcoming", lots: 0, price: 100, change: 0 },
-    { symbol: "SLICL", name: "Surya Life Insurance Company", sector: "Life Insurance", issuePrice: 100, issueDate: "2025-10-05", status: "Upcoming", lots: 0, price: 100, change: 0 },
-    { symbol: "RLI", name: "Reliable Life Insurance", sector: "Life Insurance", issuePrice: 100, issueDate: "2025-11-20", status: "Upcoming", lots: 0, price: 100, change: 0 },
-  ];
-  res.json(ipoData);
+  res.json([]);
 });
 
 app.post("/api/backtest", (req, res) => {
@@ -2368,7 +2341,6 @@ app.get("/api/breadth", (req, res) => {
     const latestDay = breadthHistory[breadthHistory.length - 1] || {};
 
     // Calculate real volatility from recent market returns
-    const allData = getAllCompanyData();
     const recentReturns = [];
     for (const { records } of allData) {
       if (records.length < 5) continue;
@@ -4175,10 +4147,6 @@ app.get("/api/brokers/analysis/participation", (req, res) => {
   const days = Math.min(parseInt(req.query.days) || 30, 90);
   res.json({ participation: [], summary: { avgNetBuyers: 0, avgNetSellers: 0, avgBuySellRatio: 0, avgTurnover: 0, trendDirection: "neutral", totalDays: 0, bullishDays: 0, bearishDays: 0 }, topTurnoverDays: [], strongestBuyerDays: [], message: "Participation data requires historical floorsheet data." });
 });
-    strongestBuyerDays,
-    days,
-  });
-});
 
 // ═══════════════════════════════════════════════════════════
 // SCRAPER STATUS ENDPOINT
@@ -4201,8 +4169,14 @@ app.get("/api/institutional-flow", rateLimit, (req, res) => {
 // ═══════════════════════════════════════════════════════════
 // EARNINGS ENDPOINT
 // ═══════════════════════════════════════════════════════════
-app.get("/api/earnings", rateLimit, (req, res) => {
-  res.json([]);
+app.get("/api/earnings", rateLimit, async (req, res) => {
+  try {
+    const data = await dataProvider.getEarningsCalendar();
+    res.json(Array.isArray(data) ? data : []);
+  } catch (err) {
+    console.error("Earnings endpoint error:", err.message);
+    res.json([]);
+  }
 });
 
 const PORT = process.env.PORT || 4000;

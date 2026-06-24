@@ -19,6 +19,11 @@ const typeColors: Record<string, string> = {
   governance: "bg-[#8892a0]/10 text-muted-theme border-[#8892a0]/30",
   holiday: "bg-orange-theme text-orange-theme border-orange-theme",
   corporate: "bg-slate-theme text-slate-theme border-slate-theme",
+  news: "bg-blue-theme text-blue-theme border-blue-theme",
+  interview: "bg-purple-theme text-purple-theme border-purple-theme",
+  analysis: "bg-amber-theme text-amber-theme border-amber-theme",
+  exclusive: "bg-accent-theme text-accent-theme border-accent-theme",
+  listing: "bg-green-theme text-green-theme border-green-theme",
 };
 
 const typeLabels: Record<string, string> = {
@@ -33,6 +38,11 @@ const typeLabels: Record<string, string> = {
   governance: "Governance",
   holiday: "Holiday",
   corporate: "Corporate",
+  news: "News",
+  interview: "Interview",
+  analysis: "Analysis",
+  exclusive: "Exclusive",
+  listing: "Listing",
 };
 
 export default function AnnouncementsPage() {
@@ -164,7 +174,11 @@ export default function AnnouncementsPage() {
                             <span className="text-xs text-muted-theme">—</span>
                           )}
                         </td>
-                        <td className="px-4 py-3 text-xs text-body-theme max-w-md">{a.title}</td>
+                        <td className="px-4 py-3 text-xs text-body-theme max-w-md">
+                          {a.url ? (
+                            <a href={a.url} target="_blank" rel="noopener noreferrer" className="hover:text-accent-theme hover:underline transition-colors">{a.title}</a>
+                          ) : a.title}
+                        </td>
                         <td className="px-4 py-3">
                           <span className={`text-[10px] font-medium px-2 py-0.5 rounded border ${typeColors[a.type] || "bg-kbd-theme text-muted-theme border-hover-theme"}`}>
                             {typeLabels[a.type] || a.type}

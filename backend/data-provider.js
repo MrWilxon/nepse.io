@@ -95,7 +95,7 @@ async function getFundamentals(symbols) {
   }
 
   try {
-    const result = await runScraper("fundamentals", symbols || [], 120000);
+    const result = await runScraper("fundamentals", symbols || [], 300000);
     if (result && !result.error) {
       writeCache(cacheKey, result);
       updateStatus(cacheKey, true, Object.keys(result).length);
@@ -279,7 +279,7 @@ async function getHoldings(symbols) {
   }
 
   try {
-    const result = await runScraper("holdings", symbols);
+    const result = await runScraper("holdings", symbols || []);
     if (result && !result.error) {
       writeCache(cacheKey, result);
       updateStatus(cacheKey, true, Object.keys(result).length);

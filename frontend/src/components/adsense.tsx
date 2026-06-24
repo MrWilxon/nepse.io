@@ -37,6 +37,24 @@ export function AdSense({
   useEffect(() => {
     if (!mounted || !adRef.current) return;
 
+    const el = adRef.current;
+    const rect = el.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) {
+      const ro = new ResizeObserver(() => {
+        const r = el.getBoundingClientRect();
+        if (r.width > 0 && r.height > 0) {
+          ro.disconnect();
+          try {
+            (window.adsbygoogle = window.adsbygoogle || []).push({});
+          } catch (e) {
+            console.error("AdSense push error:", e);
+          }
+        }
+      });
+      ro.observe(el);
+      return () => ro.disconnect();
+    }
+
     const timer = setTimeout(() => {
       try {
         (window.adsbygoogle = window.adsbygoogle || []).push({});

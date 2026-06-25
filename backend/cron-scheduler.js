@@ -54,12 +54,14 @@ function isWeekday() {
   return day >= 1 && day <= 5;
 }
 
-function startScheduler() {
+function startScheduler(onLivePricesRefresh) {
   log("Starting scheduler...");
 
+  // Refresh live stock prices from NEPSE API every 15 minutes during trading hours
   cron.schedule("*/15 11-15 * * 1-5", () => {
     if (!isTradingHours()) return;
     log("Running trading-hours refresh...");
+    if (onLivePricesRefresh) runScraperSafe("live_prices", onLivePricesRefresh);
     runScraperSafe("nepse_index", () => dataProvider.getNepseIndex(true));
     runScraperSafe("announcements", () => dataProvider.getAnnouncements(true));
     runScraperSafe("brokers", () => dataProvider.getBrokers(true));
@@ -67,6 +69,7 @@ function startScheduler() {
 
   cron.schedule("0 6 * * 1-5", () => {
     log("Running morning refresh...");
+    if (onLivePricesRefresh) runScraperSafe("live_prices", onLivePricesRefresh);
     runScraperSafe("nepse_index", () => dataProvider.getNepseIndex(true));
     runScraperSafe("announcements", () => dataProvider.getAnnouncements(true));
     runScraperSafe("earnings", () => dataProvider.getEarningsCalendar(true));
@@ -74,6 +77,7 @@ function startScheduler() {
 
   cron.schedule("0 20 * * *", () => {
     log("Running daily end-of-day refresh...");
+    if (onLivePricesRefresh) runScraperSafe("live_prices", onLivePricesRefresh);
     runScraperSafe("nepse_index", () => dataProvider.getNepseIndex(true));
     runScraperSafe("announcements", () => dataProvider.getAnnouncements(true));
     runScraperSafe("fundamentals", () => dataProvider.getFundamentals(null, true), 300000);
@@ -87,7 +91,7 @@ function startScheduler() {
     runScraperSafe("dividends", () => dataProvider.getDividends(true));
   }, { timezone: "Asia/Kathmandu" });
 
-  log("Scheduler started (trading-hours: */15 11-15 NPT, morning: 06:00, daily: 20:00, weekly: Sat 03:00)");
+  log("Scheduler started (live-prices + trading-hours: */15 11-15 NPT, morning: 06:00, daily: 20:00, weekly: Sat 03:00)");
 }
 
 module.exports = { startScheduler };

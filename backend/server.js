@@ -455,6 +455,142 @@ function readCompanyCSV(symbol) {
 function invalidateCSVCache() {
   companyDataCache.clear();
 }
+
+// ═══════════════════════════════════════════════════════════
+// NEPSE LIVE PRICE SCRAPER
+// Fetches today's prices from NEPSE API and upserts to Supabase
+// ═══════════════════════════════════════════════════════════
+
+const NEPSE_BASE = "https://newweb.nepalstock.com.np/api";
+const DUMMY_DATA = [
+  575, 373, 147, 117, 239, 143, 157, 312, 161, 612,
+  512, 804, 163, 367, 59, 426, 377, 815, 385, 736,
+  327, 506, 655, 393, 443, 52, 636, 449, 504, 625,
+  324, 26, 189, 619, 595, 76, 705, 676, 620, 275,
+  451, 133, 679, 571, 123, 641, 533, 311, 149, 668,
+  627, 320, 452, 476, 380, 273, 271, 159, 154, 427,
+  176, 453, 523, 744, 207, 72, 102, 354, 283, 138,
+  658, 392, 22, 507, 734, 332, 542, 384, 331, 192,
+  115, 284, 360, 551, 291, 404, 190, 540, 663, 659,
+  402, 13, 737, 642, 335, 183, 750, 269, 410, 164,
+];
+
+function decodeNepseToken(token, salt) {
+  const saltArr = salt.split("");
+  let decoded = token.split("");
+  for (let i = 0; i < saltArr.length && i < 20; i++) {
+    const code = saltArr[i].charCodeAt(0);
+    const pos = code % decoded.length;
+    if (pos < decoded.length) {
+      decoded.splice(pos, 1);
+    }
+  }
+  return decoded.join("");
+}
+
+async function nepseGet(method, endpoint, token, body = null) {
+  const opts = {
+    method,
+    headers: {
+      Authorization: `Salter ${token}`,
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+  };
+  if (body) opts.body = JSON.stringify(body);
+  const res = await fetch(`${NEPSE_BASE}${endpoint}`, opts);
+  if (!res.ok) throw new Error(`NEPSE ${endpoint} returned ${res.status}`);
+  return res.json();
+}
+
+async function fetchNepseToken() {
+  const res = await fetch(`${NEPSE_BASE}/authenticate/prove`, {
+    headers: { Accept: "application/json" },
+  });
+  if (!res.ok) throw new Error(`NEPSE prove returned ${res.status}`);
+  const prove = await res.json();
+  const decoded = decodeNepseToken(prove.accessToken, prove.salt);
+  return { token: decoded, prove };
+}
+
+async function fetchNepseTodayPrices() {
+  const { token, prove } = await fetchNepseToken();
+  const marketOpen = await nepseGet("GET", "/nots/nepse-data/market-open", token);
+  const marketId = parseInt(marketOpen.id) || 0;
+  const datePart = new Date().getDate();
+  const dynamicId = (DUMMY_DATA[marketId] || 0) + marketId + 2 * datePart;
+  const prices = await nepseGet("POST", "/nots/nepse-data/today-price", token, { id: dynamicId });
+  return prices;
+}
+
+async function scrapeLatestPrices() {
+  if (!supabase) {
+    console.log("No Supabase — skipping live price scrape");
+    return;
+  }
+  const log = (msg) => console.log(`[SCRAPE ${new Date().toISOString()}] ${msg}`);
+
+  try {
+    log("Fetching latest prices from NEPSE API...");
+    const raw = await fetchNepseTodayPrices();
+    const items = Array.isArray(raw) ? raw : raw?.content || raw?.data || [];
+    if (!items.length) {
+      log("NEPSE returned no price data (market may be closed)");
+      return;
+    }
+
+    const today = new Date().toISOString().slice(0, 10);
+    const rows = items
+      .filter((r) => r.symbol)
+      .map((r) => ({
+        symbol: r.symbol,
+        published_date: r.businessDate || today,
+        open: String(r.openPrice ?? r.open ?? ""),
+        high: String(r.highPrice ?? r.high ?? ""),
+        low: String(r.lowPrice ?? r.low ?? ""),
+        close: String(r.closePrice ?? r.lastTradedPrice ?? r.close ?? ""),
+        per_change: r.percentChange ?? r.perChange ?? "nan",
+        traded_quantity: String(r.totalTradeQuantity ?? r.tradeQuantity ?? r.volume ?? "0"),
+        traded_amount: String(r.totalTradedValue ?? r.turnover ?? "0"),
+        status: String(
+          parseFloat(r.closePrice ?? r.lastTradedPrice ?? 0) >
+          parseFloat(r.openPrice ?? r.open ?? 0)
+            ? 1
+            : parseFloat(r.closePrice ?? r.lastTradedPrice ?? 0) <
+              parseFloat(r.openPrice ?? r.open ?? 0)
+            ? -1
+            : 0
+        ),
+      }));
+
+    log(`Upserting ${rows.length} rows to Supabase...`);
+    const BATCH = 500;
+    let ok = 0;
+    for (let i = 0; i < rows.length; i += BATCH) {
+      const batch = rows.slice(i, i + BATCH);
+      const { error } = await supabase
+        .from("stock_prices")
+        .upsert(batch, { onConflict: "symbol,published_date", ignoreDuplicates: false });
+      if (error) log(`Batch error: ${error.message}`);
+      else ok += batch.length;
+    }
+    log(`Upserted ${ok}/${rows.length} price records`);
+
+    // Ensure companies table has all symbols
+    const symbols = rows.map((r) => ({ symbol: r.symbol }));
+    const { error: coErr } = await supabase
+      .from("companies")
+      .upsert(symbols, { onConflict: "symbol", ignoreDuplicates: true });
+    if (coErr) log(`Company upsert warning: ${coErr.message}`);
+
+    // Reload in-memory cache
+    invalidateCSVCache();
+    await preloadAllCompanyData();
+    log("Cache reloaded with fresh data");
+  } catch (err) {
+    log(`Scrape failed: ${err.message}`);
+  }
+}
 function SMA(data, period) {
   const result = [];
   for (let i = 0; i < data.length; i++) {
@@ -4294,15 +4430,18 @@ const PORT = process.env.PORT || 4000;
 server.listen(PORT, () => {
   console.log(`Backend API running on http://localhost:${PORT}`);
   console.log(`WebSocket running on ws://localhost:${PORT}/ws`);
-  preloadAllCompanyData().then(() => {
-    console.log("Data preload complete");
-  }).catch((err) => {
-    console.error("Failed to preload data from Supabase:", err.message);
-    console.log("Running with empty data cache");
-  });
+  scrapeLatestPrices()
+    .then(() => preloadAllCompanyData())
+    .then(() => {
+      console.log("Data preload complete");
+    })
+    .catch((err) => {
+      console.error("Failed to preload data from Supabase:", err.message);
+      console.log("Running with empty data cache");
+    });
   try {
     const { startScheduler } = require("./cron-scheduler");
-    startScheduler();
+    startScheduler(scrapeLatestPrices);
   } catch (e) {
     console.error("Cron scheduler failed to start:", e.message);
   }

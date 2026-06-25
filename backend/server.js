@@ -32,7 +32,11 @@ process.on("unhandledRejection", (err) => {
 const supabase = process.env.SUPABASE_URL
   ? createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
   : null;
-if (!supabase) console.warn("SUPABASE_URL not set — running without database");
+if (!supabase) {
+  console.warn("SUPABASE_URL not set — running without database");
+} else if (dataProvider && typeof dataProvider.setSupabase === "function") {
+  dataProvider.setSupabase(supabase);
+}
 
 const app = express();
 app.use(cors({

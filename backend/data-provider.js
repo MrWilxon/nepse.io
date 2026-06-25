@@ -50,10 +50,37 @@ function runScraper(scraperName, args = [], timeout = SCRAPER_TIMEOUT) {
   });
 }
 
+let supabaseClient = null;
+
+function setSupabase(client) {
+  supabaseClient = client;
+}
+
 /**
- * Read cached data from file.
+ * Read cached data from Supabase, falling back to local file.
  */
-function readCache(key, maxAgeHours = 24) {
+async function readCache(key, maxAgeHours = 24) {
+  // 1. Try Supabase Cache first
+  if (supabaseClient) {
+    try {
+      const { data, error } = await supabaseClient
+        .from("scraped_data_cache")
+        .select("*")
+        .eq("key", key)
+        .maybeSingle();
+
+      if (data && !error) {
+        const age = (Date.now() - new Date(data.updated_at).getTime()) / (1000 * 60 * 60);
+        if (age < maxAgeHours) {
+          return data.data;
+        }
+      }
+    } catch (e) {
+      console.warn(`[CACHE] Supabase read failed for ${key}, falling back to file:`, e.message);
+    }
+  }
+
+  // 2. Fall back to local file cache
   const cacheFile = path.join(CACHE_DIR, `${key}.json`);
   if (!fs.existsSync(cacheFile)) return null;
   try {
@@ -65,22 +92,43 @@ function readCache(key, maxAgeHours = 24) {
 }
 
 /**
- * Write data to cache file.
+ * Write data to local cache file and Supabase.
  */
-function writeCache(key, data) {
-  const cacheFile = path.join(CACHE_DIR, `${key}.json`);
-  fs.writeFileSync(cacheFile, JSON.stringify({ timestamp: new Date().toISOString(), data }));
+async function writeCache(key, data) {
+  // 1. Write locally
+  try {
+    const cacheFile = path.join(CACHE_DIR, `${key}.json`);
+    fs.writeFileSync(cacheFile, JSON.stringify({ timestamp: new Date().toISOString(), data }));
+  } catch (e) {
+    console.error(`[CACHE] Local write failed for ${key}:`, e.message);
+  }
+
+  // 2. Write to Supabase (in background)
+  if (supabaseClient) {
+    supabaseClient
+      .from("scraped_data_cache")
+      .upsert({ key, data, updated_at: new Date().toISOString() })
+      .then(({ error }) => {
+        if (error) {
+          console.error(`[CACHE] Supabase upsert failed for ${key}:`, error.message);
+        }
+      })
+      .catch((e) => {
+        console.error(`[CACHE] Supabase upsert exception for ${key}:`, e.message);
+      });
+  }
 }
 
 /**
  * Track scraper status for health monitoring.
  */
 function updateStatus(key, success, recordCount = 0) {
+  const cacheFile = path.join(CACHE_DIR, `${key}.json`);
   scraperStatus[key] = {
     lastRun: new Date().toISOString(),
     success,
     recordCount,
-    cached: !!readCache(key, 999),
+    cached: fs.existsSync(cacheFile),
   };
 }
 
@@ -91,7 +139,7 @@ function updateStatus(key, success, recordCount = 0) {
 async function getFundamentals(symbols, force = false) {
   const cacheKey = "fundamentals";
   if (!force) {
-    let data = readCache(cacheKey, 48);
+    let data = await readCache(cacheKey, 48);
     if (data) {
       updateStatus(cacheKey, true, Object.keys(data).length);
       return data;
@@ -101,7 +149,7 @@ async function getFundamentals(symbols, force = false) {
   try {
     const result = await runScraper("fundamentals", symbols || [], 300000);
     if (result && !result.error) {
-      writeCache(cacheKey, result);
+      await writeCache(cacheKey, result);
       updateStatus(cacheKey, true, Object.keys(result).length);
       return result;
     }
@@ -116,7 +164,7 @@ async function getFundamentals(symbols, force = false) {
 async function getIPO(force = false) {
   const cacheKey = "ipo";
   if (!force) {
-    let data = readCache(cacheKey, 24);
+    let data = await readCache(cacheKey, 24);
     if (data) {
       updateStatus(cacheKey, true, data.length);
       return data;
@@ -144,7 +192,7 @@ async function getIPO(force = false) {
         status: item.status || "Upcoming",
         issueManager: item.issueManager || "",
       }));
-      writeCache(cacheKey, transformed);
+      await writeCache(cacheKey, transformed);
       updateStatus(cacheKey, true, transformed.length);
       return transformed;
     }
@@ -159,7 +207,7 @@ async function getIPO(force = false) {
 async function getDividends(symbols, force = false) {
   const cacheKey = "dividends";
   if (!force) {
-    let data = readCache(cacheKey, 48);
+    let data = await readCache(cacheKey, 48);
     if (data) {
       updateStatus(cacheKey, true, Object.keys(data).length);
       return data;
@@ -188,7 +236,7 @@ async function getDividends(symbols, force = false) {
           status: d.status || "upcoming",
         }));
       }
-      writeCache(cacheKey, transformed);
+      await writeCache(cacheKey, transformed);
       updateStatus(cacheKey, true, Object.keys(transformed).length);
       return transformed;
     }
@@ -203,7 +251,7 @@ async function getDividends(symbols, force = false) {
 async function getMutualFunds(force = false) {
   const cacheKey = "mutual_funds";
   if (!force) {
-    let data = readCache(cacheKey, 24);
+    let data = await readCache(cacheKey, 24);
     if (data) {
       updateStatus(cacheKey, true, data.length);
       return data;
@@ -213,7 +261,7 @@ async function getMutualFunds(force = false) {
   try {
     const result = await runScraper("mutual_funds");
     if (Array.isArray(result) && result.length > 0 && !result[0]?.error) {
-      writeCache(cacheKey, result);
+      await writeCache(cacheKey, result);
       updateStatus(cacheKey, true, result.length);
       return result;
     }
@@ -228,7 +276,7 @@ async function getMutualFunds(force = false) {
 async function getDebentures(force = false) {
   const cacheKey = "debentures";
   if (!force) {
-    let data = readCache(cacheKey, 24);
+    let data = await readCache(cacheKey, 24);
     if (data) {
       updateStatus(cacheKey, true, data.length);
       return data;
@@ -238,7 +286,7 @@ async function getDebentures(force = false) {
   try {
     const result = await runScraper("debentures");
     if (Array.isArray(result) && result.length > 0 && !result[0]?.error) {
-      writeCache(cacheKey, result);
+      await writeCache(cacheKey, result);
       updateStatus(cacheKey, true, result.length);
       return result;
     }
@@ -253,7 +301,7 @@ async function getDebentures(force = false) {
 async function getInsiderTrading(force = false) {
   const cacheKey = "insider_trading";
   if (!force) {
-    let data = readCache(cacheKey, 12);
+    let data = await readCache(cacheKey, 12);
     if (data) {
       updateStatus(cacheKey, true, data.length);
       return data;
@@ -263,7 +311,7 @@ async function getInsiderTrading(force = false) {
   try {
     const result = await runScraper("insider_trading");
     if (Array.isArray(result) && result.length > 0 && !result[0]?.error) {
-      writeCache(cacheKey, result);
+      await writeCache(cacheKey, result);
       updateStatus(cacheKey, true, result.length);
       return result;
     }
@@ -278,7 +326,7 @@ async function getInsiderTrading(force = false) {
 async function getEarningsCalendar(force = false) {
   const cacheKey = "earnings_calendar";
   if (!force) {
-    let data = readCache(cacheKey, 24);
+    let data = await readCache(cacheKey, 24);
     if (data) {
       updateStatus(cacheKey, true, data.length);
       return data;
@@ -288,7 +336,7 @@ async function getEarningsCalendar(force = false) {
   try {
     const result = await runScraper("earnings");
     if (Array.isArray(result) && result.length > 0 && !result[0]?.error) {
-      writeCache(cacheKey, result);
+      await writeCache(cacheKey, result);
       updateStatus(cacheKey, true, result.length);
       return result;
     }
@@ -304,7 +352,7 @@ async function getEarningsCalendar(force = false) {
 async function getBrokers(force = false) {
   const cacheKey = "brokers";
   if (!force) {
-    let data = readCache(cacheKey, 12);
+    let data = await readCache(cacheKey, 12);
     if (data) {
       updateStatus(cacheKey, true, data.brokers ? data.brokers.length : 0);
       return data;
@@ -333,7 +381,7 @@ async function getBrokers(force = false) {
           netDirection: (b.buyAmount || 0) > (b.sellAmount || 0) ? "buy" : "sell",
         })),
       };
-      writeCache(cacheKey, transformed);
+      await writeCache(cacheKey, transformed);
       updateStatus(cacheKey, true, transformed.brokers.length);
       return transformed;
     }
@@ -348,7 +396,7 @@ async function getBrokers(force = false) {
 async function getHoldings(symbols, force = false) {
   const cacheKey = "holdings";
   if (!force) {
-    let data = readCache(cacheKey, 48);
+    let data = await readCache(cacheKey, 48);
     if (data) {
       updateStatus(cacheKey, true, Object.keys(data).length);
       return data;
@@ -358,7 +406,7 @@ async function getHoldings(symbols, force = false) {
   try {
     const result = await runScraper("holdings", symbols || []);
     if (result && !result.error) {
-      writeCache(cacheKey, result);
+      await writeCache(cacheKey, result);
       updateStatus(cacheKey, true, Object.keys(result).length);
       return result;
     }
@@ -373,7 +421,7 @@ async function getHoldings(symbols, force = false) {
 async function getNepseIndex(force = false) {
   const cacheKey = "nepse_index";
   if (!force) {
-    let data = readCache(cacheKey, 12);
+    let data = await readCache(cacheKey, 12);
     if (data) {
       updateStatus(cacheKey, true, 1);
       return data;
@@ -383,7 +431,7 @@ async function getNepseIndex(force = false) {
   try {
     const result = await runScraper("nepse_index", [], 60000);
     if (result && !result.error) {
-      writeCache(cacheKey, result);
+      await writeCache(cacheKey, result);
       updateStatus(cacheKey, true, 1);
       return result;
     }
@@ -398,7 +446,7 @@ async function getNepseIndex(force = false) {
 async function getAnnouncements(force = false) {
   const cacheKey = "announcements";
   if (!force) {
-    let data = readCache(cacheKey, 6);
+    let data = await readCache(cacheKey, 6);
     if (data) {
       updateStatus(cacheKey, true, data.length);
       return data;
@@ -408,7 +456,7 @@ async function getAnnouncements(force = false) {
   try {
     const result = await runScraper("announcements");
     if (Array.isArray(result) && result.length > 0 && !result[0]?.error) {
-      writeCache(cacheKey, result);
+      await writeCache(cacheKey, result);
       updateStatus(cacheKey, true, result.length);
       return result;
     }
@@ -502,6 +550,7 @@ function generateSyntheticAnnouncements() {
 }
 
 module.exports = {
+  setSupabase,
   getFundamentals,
   getIPO,
   getDividends,

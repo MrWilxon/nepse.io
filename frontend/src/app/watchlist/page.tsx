@@ -4,8 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Star, TrendingUp, TrendingDown, Trash2, ArrowLeft } from "lucide-react";
 import { useWatchlist } from "@/lib/watchlist";
-
-const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+import { API_BASE } from "@/lib/api";
 
 interface StockData {
   symbol: string;
@@ -29,7 +28,7 @@ export default function WatchlistPage() {
       return;
     }
     setLoading(true);
-    fetch(`${API}/api/companies`)
+    fetch(`${API_BASE}/api/companies`)
       .then((r) => r.json())
       .then((data) => {
         const filtered = data

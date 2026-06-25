@@ -2,8 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Bell, Plus, Trash2, Mail, Send, Target, X, AlertCircle, CheckCircle } from "lucide-react";
-
-const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+import { API_BASE } from "@/lib/api";
 
 export default function AlertsConfigPage() {
   const [data, setData] = useState<any>(null);
@@ -12,18 +11,18 @@ export default function AlertsConfigPage() {
   const [form, setForm] = useState({ symbol: "", upperTarget: "", lowerTarget: "", name: "", notifyEmail: "", notifyTelegram: "", message: "" });
 
   const fetchData = () => {
-    fetch(`${API}/api/watchlist`).then(r => r.json()).then(d => { setData(d); setLoading(false); });
+    fetch(`${API_BASE}/api/watchlist`).then(r => r.json()).then(d => { setData(d); setLoading(false); }).catch(() => setLoading(false));
   };
   useEffect(() => { fetchData(); }, []);
 
   const addAlert = () => {
-    fetch(`${API}/api/watchlist`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) })
+    fetch(`${API_BASE}/api/watchlist`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) })
       .then(r => r.json()).then(() => { setShowForm(false); setForm({ symbol: "", upperTarget: "", lowerTarget: "", name: "", notifyEmail: "", notifyTelegram: "", message: "" }); fetchData(); });
   };
 
   const deleteAlert = (id: number) => {
     if (!confirm("Delete alert?")) return;
-    fetch(`${API}/api/watchlist/${id}`, { method: "DELETE" }).then(() => fetchData());
+    fetch(`${API_BASE}/api/watchlist/${id}`, { method: "DELETE" }).then(() => fetchData());
   };
 
   if (loading) return <div className="h-96 rounded-xl bg-input-theme animate-pulse" />;

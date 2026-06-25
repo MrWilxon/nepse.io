@@ -25,6 +25,10 @@ try {
   };
 }
 
+process.on("unhandledRejection", (err) => {
+  console.error("Unhandled rejection:", err);
+});
+
 const supabase = process.env.SUPABASE_URL
   ? createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
   : null;
@@ -120,7 +124,10 @@ function getMarketStatus() {
   const hours = nepalTime.getHours();
   const minutes = nepalTime.getMinutes();
   const timeMinutes = hours * 60 + minutes;
-  const dateStr = nepalTime.toISOString().split("T")[0];
+  const year = nepalTime.getFullYear();
+  const month = String(nepalTime.getMonth() + 1).padStart(2, "0");
+  const day = String(nepalTime.getDate()).padStart(2, "0");
+  const dateStr = `${year}-${month}-${day}`;
   const dayOfWeek = nepalTime.getDay();
 
   if (dayOfWeek === 0 || dayOfWeek === 6) {
@@ -143,7 +150,10 @@ function getNextOpenDate(current) {
   for (let i = 0; i < 10; i++) {
     d.setDate(d.getDate() + 1);
     const dow = d.getDay();
-    const ds = d.toISOString().split("T")[0];
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    const ds = `${y}-${m}-${dd}`;
     if (dow !== 0 && dow !== 6 && !NEPSE_HOLIDAYS_2025_2026.includes(ds)) {
       return ds;
     }
@@ -600,8 +610,7 @@ async function scrapeLatestPrices() {
     .upsert(symbolRows, { onConflict: "symbol", ignoreDuplicates: true });
   if (coErr) log(`Company upsert warning: ${coErr.message}`);
 
-  // ── Reload in-memory cache ──
-  invalidateCSVCache();
+  // ── Reload in-memory cache (atomic swap, no invalidate needed) ──
   await preloadAllCompanyData();
   log("Cache reloaded with fresh data");
 }
@@ -1361,9 +1370,15 @@ app.post("/api/screener", rateLimit, (req, res) => {
             const field = f.field;
             const pair = field.split("_crossed_above_");
             if (pair.length === 2) {
-              const prevA = company[pair[0]] ?? val;
-              const prevB = company[pair[1]] ?? val;
-              pass = prevA <= prevB && val > company[pair[1]];
+              const valA = company[pair[0]];
+              const valB = company[pair[1]];
+              if (valA === null || valA === undefined || valB === null || valB === undefined) {
+                pass = false;
+              } else {
+                pass = valA > valB;
+              }
+            } else {
+              pass = false;
             }
             break;
           }
@@ -1394,6 +1409,7 @@ app.get("/api/market-status", (req, res) => {
 });
 
 app.get("/api/debug/scrape", async (req, res) => {
+  if (!supabase) return res.status(500).json({ error: "Database not available" });
   try {
     await scrapeLatestPrices();
     const { data: latest } = await supabase
@@ -1784,7 +1800,7 @@ app.get("/api/insider-trading", async (req, res) => {
     let transactions = await dataProvider.getInsiderTrading();
     if (!Array.isArray(transactions)) transactions = [];
     if (symbol) transactions = transactions.filter((t) => t.symbol === symbol.toUpperCase());
-    if (type) transactions = transactions.filter((t) => t.transactionType.toLowerCase() === type.toLowerCase());
+    if (type) transactions = transactions.filter((t) => t.transactionType && t.transactionType.toLowerCase() === type.toLowerCase());
     if (days) {
       const cutoff = new Date();
       cutoff.setDate(cutoff.getDate() - parseInt(days));
@@ -1794,8 +1810,8 @@ app.get("/api/insider-trading", async (req, res) => {
       totalTransactions: transactions.length,
       totalBuyValue: transactions.filter((t) => t.transactionType === "Buy").reduce((s, t) => s + (t.totalValue || 0), 0),
       totalSellValue: transactions.filter((t) => t.transactionType === "Sell").reduce((s, t) => s + (t.totalValue || 0), 0),
-      uniqueInsiders: new Set(transactions.map((t) => t.insiderName)).size,
-      uniqueCompanies: new Set(transactions.map((t) => t.symbol)).size,
+      uniqueInsiders: new Set(transactions.map((t) => t.insiderName).filter(Boolean)).size,
+      uniqueCompanies: new Set(transactions.map((t) => t.symbol).filter(Boolean)).size,
     };
     res.json({ transactions, summary });
   } catch (err) {
@@ -2227,12 +2243,16 @@ app.get("/api/volume-profile/:symbol", (req, res) => {
     data = data.slice(-days);
     if (data.length < 5) return res.status(400).json({ error: "Not enough data" });
 
-    const numBins = parseInt(bins) || 20;
+    const numBins = Math.max(1, parseInt(bins) || 20);
     let minPrice = Infinity, maxPrice = -Infinity;
     data.forEach((d) => {
       if (d.low < minPrice) minPrice = d.low;
       if (d.high > maxPrice) maxPrice = d.high;
     });
+    if (minPrice === maxPrice) {
+      minPrice = minPrice * 0.99;
+      maxPrice = maxPrice * 1.01;
+    }
     const binSize = (maxPrice - minPrice) / numBins;
     const profile = [];
     for (let i = 0; i < numBins; i++) {
@@ -2263,16 +2283,16 @@ app.get("/api/volume-profile/:symbol", (req, res) => {
       });
     }
 
-    const maxVol = Math.max(...profile.map((p) => p.totalVolume));
-    const poc = profile.reduce((prev, curr) => curr.totalVolume > prev.totalVolume ? curr : prev);
+    const maxVol = profile.length > 0 ? Math.max(...profile.map((p) => p.totalVolume)) : 0;
+    const poc = profile.length > 0 ? profile.reduce((prev, curr) => curr.totalVolume > prev.totalVolume ? curr : prev) : null;
     const valueArea = [...profile].sort((a, b) => b.totalVolume - a.totalVolume).slice(0, Math.ceil(numBins * 0.7));
-    const vaHigh = Math.max(...valueArea.map((v) => v.priceHigh));
-    const vaLow = Math.min(...valueArea.map((v) => v.priceLow));
+    const vaHigh = valueArea.length > 0 ? Math.max(...valueArea.map((v) => v.priceHigh)) : 0;
+    const vaLow = valueArea.length > 0 ? Math.min(...valueArea.map((v) => v.priceLow)) : 0;
 
     res.json({
       symbol, period: days, numBins,
       profile: profile.map((p) => ({ ...p, normalized: maxVol > 0 ? Math.round((p.totalVolume / maxVol) * 100) : 0 })),
-      poc: { price: poc.priceMid, volume: poc.totalVolume },
+      poc: poc ? { price: poc.priceMid, volume: poc.totalVolume } : null,
       valueArea: { high: Math.round(vaHigh * 100) / 100, low: Math.round(vaLow * 100) / 100 },
       currentPrice: data[data.length - 1].close,
       summary: {
@@ -2721,9 +2741,17 @@ function getPaperPrice(symbol) {
   const csvData = readCompanyCSV(symbol);
   if (csvData && csvData.length > 0) {
     const last = csvData[csvData.length - 1];
-    return parseFloat(last.Close) || parseFloat(last.close) || parseFloat(last.LTP) || parseFloat(last.ltp) || null;
+    const price = parseFloat(last.close);
+    return Number.isFinite(price) && price > 0 ? price : null;
   }
   return null;
+}
+
+const paperTradeLocks = new Map();
+async function withPaperTradeLock(fn) {
+  while (paperTradeLocks.get("_global")) await new Promise((r) => setTimeout(r, 5));
+  paperTradeLocks.set("_global", true);
+  try { return await fn(); } finally { paperTradeLocks.delete("_global"); }
 }
 
 app.post("/api/paper-trading/order", async (req, res) => {
@@ -2740,46 +2768,51 @@ app.post("/api/paper-trading/order", async (req, res) => {
 
   if (!supabase) return res.status(500).json({ error: "Database not available" });
 
-  const account = await getPaperAccount();
-  let balance = parseFloat(account.balance);
+  const result = await withPaperTradeLock(async () => {
+    const account = await getPaperAccount();
+    let balance = parseFloat(account.balance);
 
-  if (type === "buy") {
-    if (totalCost > balance) {
-      return res.status(400).json({ error: "Insufficient balance", balance, cost: totalCost });
+    if (type === "buy") {
+      if (totalCost > balance) {
+        return res.status(400).json({ error: "Insufficient balance", balance, cost: totalCost });
+      }
+      balance -= totalCost;
+      await supabase.from("paper_account").update({ balance, updated_at: new Date().toISOString() }).eq("id", account.id);
+
+      const { data: existing } = await supabase.from("paper_holdings").select("*").eq("symbol", sym).single();
+      if (existing) {
+        const newTotalCost = parseFloat(existing.total_cost) + totalCost;
+        const newShares = existing.shares + quantity;
+        await supabase.from("paper_holdings").update({ shares: newShares, total_cost: newTotalCost, avg_price: newTotalCost / newShares, updated_at: new Date().toISOString() }).eq("symbol", sym);
+      } else {
+        await supabase.from("paper_holdings").insert({ symbol: sym, shares: quantity, total_cost: totalCost, avg_price: price });
+      }
+    } else if (type === "sell") {
+      const { data: h } = await supabase.from("paper_holdings").select("*").eq("symbol", sym).single();
+      if (!h || h.shares < quantity) {
+        return res.status(400).json({ error: "Insufficient shares", available: h ? h.shares : 0, requested: quantity });
+      }
+      balance += totalCost;
+      await supabase.from("paper_account").update({ balance, updated_at: new Date().toISOString() }).eq("id", account.id);
+
+      const newShares = h.shares - quantity;
+      if (newShares === 0) {
+        await supabase.from("paper_holdings").delete().eq("symbol", sym);
+      } else {
+        const newTotalCost = h.avg_price * newShares;
+        await supabase.from("paper_holdings").update({ shares: newShares, total_cost: newTotalCost, updated_at: new Date().toISOString() }).eq("symbol", sym);
+      }
     }
-    balance -= totalCost;
-    await supabase.from("paper_account").update({ balance, updated_at: new Date().toISOString() }).eq("id", account.id);
 
-    const { data: existing } = await supabase.from("paper_holdings").select("*").eq("symbol", sym).single();
-    if (existing) {
-      const newTotalCost = parseFloat(existing.total_cost) + totalCost;
-      const newShares = existing.shares + quantity;
-      await supabase.from("paper_holdings").update({ shares: newShares, total_cost: newTotalCost, avg_price: newTotalCost / newShares, updated_at: new Date().toISOString() }).eq("symbol", sym);
-    } else {
-      await supabase.from("paper_holdings").insert({ symbol: sym, shares: quantity, total_cost: totalCost, avg_price: price });
-    }
-  } else if (type === "sell") {
-    const { data: h } = await supabase.from("paper_holdings").select("*").eq("symbol", sym).single();
-    if (!h || h.shares < quantity) {
-      return res.status(400).json({ error: "Insufficient shares", available: h ? h.shares : 0, requested: quantity });
-    }
-    balance += totalCost;
-    await supabase.from("paper_account").update({ balance, updated_at: new Date().toISOString() }).eq("id", account.id);
+    const { data: trade } = await supabase.from("paper_trades").insert({
+      symbol: sym, type, quantity, price, total: totalCost, balance_after: balance,
+    }).select().single();
 
-    const newShares = h.shares - quantity;
-    if (newShares === 0) {
-      await supabase.from("paper_holdings").delete().eq("symbol", sym);
-    } else {
-      const newTotalCost = h.avg_price * newShares;
-      await supabase.from("paper_holdings").update({ shares: newShares, total_cost: newTotalCost, updated_at: new Date().toISOString() }).eq("symbol", sym);
-    }
-  }
+    return { trade, balance };
+  });
 
-  const { data: trade } = await supabase.from("paper_trades").insert({
-    symbol: sym, type, quantity, price, total: totalCost, balance_after: balance,
-  }).select().single();
-
-  res.json({ trade, balance, holdings: {} });
+  if (res.headersSent) return;
+  res.json({ ...result, holdings: {} });
 });
 
 app.get("/api/paper-trading/portfolio", async (req, res) => {
@@ -2791,11 +2824,14 @@ app.get("/api/paper-trading/portfolio", async (req, res) => {
 
   const { data: dbHoldings } = await supabase.from("paper_holdings").select("*");
   const holdingsArray = (dbHoldings || []).map((h) => {
-    const currentPrice = getPaperPrice(h.symbol);
-    const marketValue = currentPrice * h.shares;
-    const pnl = marketValue - parseFloat(h.total_cost);
-    const pnlPct = h.total_cost > 0 ? (pnl / parseFloat(h.total_cost) * 100).toFixed(2) : 0;
-    return { symbol: h.symbol, shares: h.shares, avgPrice: parseFloat(h.avg_price), totalCost: parseFloat(h.total_cost), currentPrice, marketValue, pnl: Math.round(pnl * 100) / 100, pnlPct: parseFloat(pnlPct) };
+    const currentPrice = getPaperPrice(h.symbol) || 0;
+    const totalCost = parseFloat(h.total_cost) || 0;
+    const avgPrice = parseFloat(h.avg_price) || 0;
+    const shares = h.shares || 0;
+    const marketValue = currentPrice * shares;
+    const pnl = marketValue - totalCost;
+    const pnlPct = totalCost > 0 ? (pnl / totalCost * 100).toFixed(2) : 0;
+    return { symbol: h.symbol, shares, avgPrice, totalCost, currentPrice, marketValue, pnl: Math.round(pnl * 100) / 100, pnlPct: parseFloat(pnlPct) };
   });
   const totalMarketValue = holdingsArray.reduce((s, h) => s + h.marketValue, 0);
 
@@ -2974,15 +3010,18 @@ app.get("/api/portfolio", async (req, res) => {
 
   const { data: dbHoldings } = await supabase.from("portfolio_holdings").select("*");
   const holdingsArray = (dbHoldings || []).map((h) => {
-    const currentPrice = getPaperPrice(h.symbol);
-    const marketValue = currentPrice * h.shares;
-    const pnl = marketValue - parseFloat(h.total_invested);
+    const currentPrice = getPaperPrice(h.symbol) || 0;
+    const avgPrice = parseFloat(h.avg_price) || 0;
+    const totalInvested = parseFloat(h.total_invested) || 0;
+    const shares = h.shares || 0;
+    const marketValue = currentPrice * shares;
+    const pnl = marketValue - totalInvested;
     return {
-      symbol: h.symbol, shares: h.shares, avgPrice: parseFloat(h.avg_price), totalInvested: parseFloat(h.total_invested), currentPrice,
+      symbol: h.symbol, shares, avgPrice, totalInvested, currentPrice,
       marketValue: Math.round(marketValue * 100) / 100,
       pnl: Math.round(pnl * 100) / 100,
-      pnlPct: h.total_invested > 0 ? parseFloat((pnl / parseFloat(h.total_invested) * 100).toFixed(2)) : 0,
-      dayChange: Math.round((currentPrice - parseFloat(h.avg_price)) * 0.02 * 100) / 100,
+      pnlPct: totalInvested > 0 ? parseFloat((pnl / totalInvested * 100).toFixed(2)) : 0,
+      dayChange: Math.round((currentPrice - avgPrice) * 0.02 * 100) / 100,
     };
   });
   const totalValue = holdingsArray.reduce((s, h) => s + h.marketValue, 0);
@@ -3007,12 +3046,13 @@ app.post("/api/portfolio/holdings", async (req, res) => {
   const sym = symbol.toUpperCase();
   const qty = parseInt(quantity);
   const px = parseFloat(price);
+  const tradeType = (type || "buy").toLowerCase();
 
   if (!supabase) return res.status(500).json({ error: "Database not available" });
 
   const { data: existing } = await supabase.from("portfolio_holdings").select("*").eq("symbol", sym).single();
 
-  if (type === "sell") {
+  if (tradeType === "sell") {
     if (!existing || existing.shares < qty) return res.status(400).json({ error: "Insufficient shares" });
     const newShares = existing.shares - qty;
     if (newShares === 0) {
@@ -3031,7 +3071,7 @@ app.post("/api/portfolio/holdings", async (req, res) => {
     }
   }
 
-  await supabase.from("portfolio_transactions").insert({ symbol: sym, type: type || "buy", quantity: qty, price: px });
+  await supabase.from("portfolio_transactions").insert({ symbol: sym, type: tradeType, quantity: qty, price: px });
   res.json({ message: "Updated", holding: { symbol: sym, shares: qty, avgPrice: px } });
 });
 
@@ -3046,9 +3086,13 @@ app.delete("/api/portfolio/holdings/:symbol", async (req, res) => {
 // --- Community: Per-Company Discussion Threads (Supabase-backed) ---
 async function seedCommunityData() {
   if (!supabase) return;
-  const { count } = await supabase.from("community_posts").select("*", { count: "exact", head: true });
-  if (count > 0) return;
-  console.log("Community posts table is empty. No synthetic data seeded — use the app to create real posts.");
+  try {
+    const { count } = await supabase.from("community_posts").select("*", { count: "exact", head: true });
+    if (count > 0) return;
+    console.log("Community posts table is empty. No synthetic data seeded — use the app to create real posts.");
+  } catch (e) {
+    console.error("seedCommunityData failed:", e.message);
+  }
 }
 seedCommunityData();
 
@@ -3100,6 +3144,7 @@ app.post("/api/community/:symbol/:id/vote", async (req, res) => {
   const id = parseInt(req.params.id);
   const { direction } = req.body;
   if (!supabase) return res.status(500).json({ error: "Database not available" });
+  if (direction !== "up" && direction !== "down") return res.status(400).json({ error: "direction must be 'up' or 'down'" });
 
   const { data: post } = await supabase.from("community_posts").select("id, votes").eq("id", id).single();
   if (!post) return res.status(404).json({ error: "Post not found" });
@@ -3468,6 +3513,11 @@ setInterval(() => {
     blocked: apiStats.blockedRequests,
   });
   if (apiStats.requestHistory.length > 30) apiStats.requestHistory.shift();
+
+  const cutoff = now - 5 * 60 * 1000;
+  for (const [ip, v] of Object.entries(apiStats.ipCounts)) {
+    if (v.lastSeen < cutoff) delete apiStats.ipCounts[ip];
+  }
 }, 10000);
 
 app.get("/api/rate-limit-status", (req, res) => {

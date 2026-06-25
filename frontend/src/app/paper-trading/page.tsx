@@ -2,8 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Search, ShoppingCart, DollarSign, RotateCcw, TrendingUp, TrendingDown } from "lucide-react";
-
-const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+import { API_BASE } from "@/lib/api";
 
 export default function PaperTradingPage() {
   const [portfolio, setPortfolio] = useState<any>(null);
@@ -14,14 +13,14 @@ export default function PaperTradingPage() {
   const [msg, setMsg] = useState("");
 
   const fetchPortfolio = () => {
-    fetch(`${API}/api/paper-trading/portfolio`).then(r => r.json()).then(d => { setPortfolio(d); setLoading(false); });
+    fetch(`${API_BASE}/api/paper-trading/portfolio`).then(r => r.json()).then(d => { setPortfolio(d); setLoading(false); }).catch(() => setLoading(false));
   };
 
   useEffect(() => { fetchPortfolio(); }, []);
 
   const placeOrder = () => {
     setMsg("");
-    fetch(`${API}/api/paper-trading/order`, {
+    fetch(`${API_BASE}/api/paper-trading/order`, {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ symbol: symbol.toUpperCase(), type: orderType, quantity: parseInt(quantity) }),
     }).then(r => r.json()).then(d => {
@@ -33,7 +32,7 @@ export default function PaperTradingPage() {
 
   const resetAccount = () => {
     if (!confirm("Reset account to Rs 10,000,000?")) return;
-    fetch(`${API}/api/paper-trading/reset`, { method: "POST" }).then(() => { setMsg("Account reset!"); fetchPortfolio(); });
+    fetch(`${API_BASE}/api/paper-trading/reset`, { method: "POST" }).then(() => { setMsg("Account reset!"); fetchPortfolio(); });
   };
 
   if (loading) return <div className="space-y-4">{[1,2,3].map(i => <div key={i} className="h-48 rounded-xl bg-input-theme animate-pulse" />)}</div>;

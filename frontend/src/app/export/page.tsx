@@ -23,7 +23,8 @@ export default function ExportPage() {
   useEffect(() => {
     fetch(`${API_BASE}/api/companies`)
       .then((r) => r.json())
-      .then(setCompanies);
+      .then(setCompanies)
+      .catch(() => {});
   }, []);
 
   const sectors = useMemo(() => {
@@ -62,6 +63,7 @@ export default function ExportPage() {
       const res = await fetch(
         `${API_BASE}/api/companies/${symbol}?from=${fromDate}&to=${toDate}&limit=20`
       );
+      if (!res.ok) { setPreviewData(null); return; }
       const data = await res.json();
       setPreviewData(data.data?.slice(0, 10) || []);
     } catch {
@@ -98,7 +100,9 @@ export default function ExportPage() {
       a.download = `${symbol}_data.csv`;
       a.click();
       URL.revokeObjectURL(url);
-    } catch {}
+    } catch {
+      setExporting(false);
+    }
   };
 
   const handleExportAll = async () => {

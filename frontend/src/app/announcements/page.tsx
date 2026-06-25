@@ -2,8 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Bell, Calendar, Info, Search, Filter } from "lucide-react";
-
-const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+import { API_BASE } from "@/lib/api";
 
 type Tab = "updates" | "holidays";
 
@@ -55,8 +54,8 @@ export default function AnnouncementsPage() {
 
   useEffect(() => {
     Promise.all([
-      fetch(`${API}/api/announcements`).then(r => r.json()),
-      fetch(`${API}/api/holidays`).then(r => r.json()),
+      fetch(`${API_BASE}/api/announcements`).then(r => r.json()),
+      fetch(`${API_BASE}/api/holidays`).then(r => r.json()),
     ]).then(([ann, hol]) => {
       setAnnouncements(ann.announcements || []);
       setHolidays(hol.upcoming || []);
@@ -68,7 +67,7 @@ export default function AnnouncementsPage() {
     if (filterType !== "all" && a.type !== filterType) return false;
     if (search) {
       const q = search.toLowerCase();
-      return a.symbol.toLowerCase().includes(q) || a.title.toLowerCase().includes(q);
+      return (a.symbol || "").toLowerCase().includes(q) || (a.title || "").toLowerCase().includes(q);
     }
     return true;
   });

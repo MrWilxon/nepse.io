@@ -2,8 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Briefcase, Plus, Trash2, TrendingUp, TrendingDown, Search, X } from "lucide-react";
-
-const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+import { API_BASE } from "@/lib/api";
 
 export default function PortfolioPage() {
   const [data, setData] = useState<any>(null);
@@ -12,18 +11,18 @@ export default function PortfolioPage() {
   const [form, setForm] = useState({ symbol: "", type: "buy", quantity: "10", price: "" });
 
   const fetchData = () => {
-    fetch(`${API}/api/portfolio`).then(r => r.json()).then(d => { setData(d); setLoading(false); });
+    fetch(`${API_BASE}/api/portfolio`).then(r => r.json()).then(d => { setData(d); setLoading(false); }).catch(() => setLoading(false));
   };
   useEffect(() => { fetchData(); }, []);
 
   const addHolding = () => {
-    fetch(`${API}/api/portfolio/holdings`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) })
+    fetch(`${API_BASE}/api/portfolio/holdings`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) })
       .then(r => r.json()).then(() => { setShowForm(false); setForm({ symbol: "", type: "buy", quantity: "10", price: "" }); fetchData(); });
   };
 
   const removeHolding = (sym: string) => {
     if (!confirm(`Remove ${sym}?`)) return;
-    fetch(`${API}/api/portfolio/holdings/${sym}`, { method: "DELETE" }).then(() => fetchData());
+    fetch(`${API_BASE}/api/portfolio/holdings/${sym}`, { method: "DELETE" }).then(() => fetchData());
   };
 
   if (loading) return <div className="h-96 rounded-xl bg-input-theme animate-pulse" />;

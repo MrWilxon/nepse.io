@@ -52,7 +52,7 @@ export default function IndicatorsPage() {
       .catch(() => setLoading(false));
   };
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => { fetchData(); }, [symbol, indicators]);
 
   const addIndicator = () => {
     setIndicators([...indicators, { type: "sma", period: 20 }]);

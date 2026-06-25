@@ -153,7 +153,7 @@ export default function PortfolioAnalytics() {
                   <div className="h-3 w-3 rounded-full" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
                   <span className="text-xs text-[var(--text-muted)]">{s.name}</span>
                   <span className="text-xs font-bold text-[var(--text-primary)]">
-                    {((s.value / stats.totalValue) * 100).toFixed(1)}%
+                    {stats.totalValue > 0 ? ((s.value / stats.totalValue) * 100).toFixed(1) : "0"}%
                   </span>
                 </div>
               ))}

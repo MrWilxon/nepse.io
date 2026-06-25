@@ -5,6 +5,12 @@ try {
   dataProvider = require("./data-provider");
 } catch (e) {
   console.error("Cron: data-provider load failed:", e.message);
+  // Return a no-op scheduler that logs but doesn't crash
+  module.exports = {
+    startScheduler: () => {
+      console.error("Cron scheduler disabled: data-provider unavailable");
+    },
+  };
   return;
 }
 

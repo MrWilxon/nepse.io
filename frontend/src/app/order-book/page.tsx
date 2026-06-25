@@ -2,8 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Search, ArrowDown, ArrowUp } from "lucide-react";
-
-const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+import { API_BASE } from "@/lib/api";
 
 export default function OrderBookPage() {
   const [symbol, setSymbol] = useState("NMB");
@@ -12,7 +11,7 @@ export default function OrderBookPage() {
 
   const fetchBook = () => {
     setLoading(true);
-    fetch(`${API}/api/order-book/${symbol}`).then(r => r.json()).then(d => { setData(d); setLoading(false); }).catch(() => setLoading(false));
+    fetch(`${API_BASE}/api/order-book/${symbol}`).then(r => r.json()).then(d => { setData(d); setLoading(false); }).catch(() => setLoading(false));
   };
 
   useEffect(() => { fetchBook(); }, []);

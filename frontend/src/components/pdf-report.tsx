@@ -23,10 +23,40 @@ export default function PDFReportGenerator({ symbol, data }: { symbol: string; d
 
   const generateReport = async () => {
     setGenerating(true);
-    await new Promise((r) => setTimeout(r, 2000));
+    try {
+      const reportContent = [
+        `NEPSE Stock Report: ${symbol}`,
+        `Generated: ${new Date().toLocaleString()}`,
+        "",
+        data ? [
+          `Company: ${data.name}`,
+          `Sector: ${data.sector}`,
+          `LTP: Rs. ${data.ltp?.toFixed(2)}`,
+          `Change: ${data.change?.toFixed(2)}%`,
+          `Volume: ${data.volume?.toLocaleString()}`,
+          `52-Week High: Rs. ${data.high52w?.toFixed(2)}`,
+          `52-Week Low: Rs. ${data.low52w?.toFixed(2)}`,
+          `P/E Ratio: ${data.pe?.toFixed(2)}`,
+          `Dividend Yield: ${data.dividendYield?.toFixed(2)}%`,
+          "",
+          "Technical Signals:",
+          ...(data.signals || []).map((s) => `  - ${s}`),
+        ].join("\n") : "No data available",
+      ].join("\n");
+
+      const blob = new Blob([reportContent], { type: "text/plain" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${symbol}_report.txt`;
+      a.click();
+      URL.revokeObjectURL(url);
+      setGenerated(true);
+      setTimeout(() => setGenerated(false), 3000);
+    } catch {
+      // silently fail
+    }
     setGenerating(false);
-    setGenerated(true);
-    setTimeout(() => setGenerated(false), 3000);
   };
 
   return (

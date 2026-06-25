@@ -101,7 +101,9 @@ function CandlestickChartComponent({ data, chartType, indicator, height = 450 }:
     const volumeData = data.map((d) => ({
       time: d.date as string,
       value: d.volume ?? 0,
-      color: (d.close ?? 0) >= (d.open ?? 0) ? "rgba(22, 163, 74, 0.3)" : "rgba(220, 38, 38, 0.3)",
+      color: d.close != null && d.open != null
+        ? (d.close >= d.open ? "rgba(22, 163, 74, 0.3)" : "rgba(220, 38, 38, 0.3)")
+        : "rgba(148, 163, 184, 0.3)",
     }));
     const volumeSeries = chart.addHistogramSeries({
       priceFormat: { type: "volume" as const },

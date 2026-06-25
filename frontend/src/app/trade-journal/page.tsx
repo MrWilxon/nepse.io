@@ -2,8 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Plus, TrendingUp, TrendingDown, Trash2, BookOpen, X } from "lucide-react";
-
-const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+import { API_BASE } from "@/lib/api";
 
 export default function TradeJournalPage() {
   const [data, setData] = useState<any>(null);
@@ -12,18 +11,18 @@ export default function TradeJournalPage() {
   const [form, setForm] = useState({ symbol: "", type: "buy", entryPrice: "", exitPrice: "", quantity: "10", strategy: "Technical", notes: "", entryDate: "", exitDate: "", stopLoss: "", takeProfit: "" });
 
   const fetchData = () => {
-    fetch(`${API}/api/journal`).then(r => r.json()).then(d => { setData(d); setLoading(false); });
+    fetch(`${API_BASE}/api/journal`).then(r => r.json()).then(d => { setData(d); setLoading(false); }).catch(() => setLoading(false));
   };
   useEffect(() => { fetchData(); }, []);
 
   const addEntry = () => {
-    fetch(`${API}/api/journal`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) })
+    fetch(`${API_BASE}/api/journal`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) })
       .then(r => r.json()).then(() => { setShowForm(false); setForm({ symbol: "", type: "buy", entryPrice: "", exitPrice: "", quantity: "10", strategy: "Technical", notes: "", entryDate: "", exitDate: "", stopLoss: "", takeProfit: "" }); fetchData(); });
   };
 
   const deleteEntry = (id: number) => {
     if (!confirm("Delete this entry?")) return;
-    fetch(`${API}/api/journal/${id}`, { method: "DELETE" }).then(() => fetchData());
+    fetch(`${API_BASE}/api/journal/${id}`, { method: "DELETE" }).then(() => fetchData());
   };
 
   if (loading) return <div className="h-96 rounded-xl bg-input-theme animate-pulse" />;

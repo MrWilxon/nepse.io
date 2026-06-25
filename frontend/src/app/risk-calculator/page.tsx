@@ -2,8 +2,7 @@
 
 import { useState } from "react";
 import { Calculator, AlertTriangle, Target, Shield } from "lucide-react";
-
-const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+import { API_BASE } from "@/lib/api";
 
 export default function RiskCalculatorPage() {
   const [form, setForm] = useState({ accountSize: "1000000", riskPercent: "2", entryPrice: "", stopLoss: "", takeProfit: "", symbol: "NMB" });
@@ -12,7 +11,7 @@ export default function RiskCalculatorPage() {
 
   const calculate = () => {
     setLoading(true);
-    fetch(`${API}/api/risk-calculator`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) })
+    fetch(`${API_BASE}/api/risk-calculator`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) })
       .then(r => r.json()).then(d => { setResult(d); setLoading(false); }).catch(() => setLoading(false));
   };
 

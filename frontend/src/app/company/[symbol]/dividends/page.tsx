@@ -28,7 +28,7 @@ export default function DividendsPage() {
       setDividends(divData.dividends || divData);
       setStats(statsData);
       setLoading(false);
-    });
+    }).catch(() => setLoading(false));
   }, [symbol]);
 
   const totalDividend = dividends.reduce((sum, d) => sum + d.amount, 0);

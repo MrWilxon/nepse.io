@@ -78,7 +78,7 @@ export default function ComparePage() {
     }
     setChartLoading(true);
     const from = new Date();
-    from.setFullYear(from.getFullYear() - 1);
+    from.setMonth(from.getMonth() - period);
     const fromStr = from.toISOString().split("T")[0];
 
     Promise.all(
@@ -91,7 +91,7 @@ export default function ComparePage() {
       .then((results) => setCompareData(results))
       .catch(() => {})
       .finally(() => setChartLoading(false));
-  }, [selected]);
+  }, [selected, period]);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {

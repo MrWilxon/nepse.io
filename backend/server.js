@@ -4165,76 +4165,6 @@ app.get("/api/brokers/history/overview", (req, res) => {
 // ============ FLOORSHEET ============
 const FLOORSHEET_FILE = path.join(__dirname, "..", "data", "floorsheet.json");
 
-function generateMockFloorsheetData() {
-  const symbols = Object.keys(NAME_MAP);
-  if (symbols.length === 0) {
-    symbols.push("ADBL", "NABIL", "NICA", "SBL", "EBL", "GBIME", "SHINE", "AHPC", "API", "CIT");
-  }
-
-  const today = new Date();
-  const nepalTime = new Date(today.toLocaleString("en-US", { timeZone: "Asia/Kathmandu" }));
-  const nepalDay = nepalTime.getDay(); // 0-6 (0=Sunday, 5=Friday, 6=Saturday)
-  if (nepalDay === 5) {
-    nepalTime.setDate(nepalTime.getDate() - 1);
-  } else if (nepalDay === 6) {
-    nepalTime.setDate(nepalTime.getDate() - 2);
-  }
-  const dateStr = nepalTime.toISOString().split("T")[0];
-
-  const records = [];
-  const recordCount = 350;
-
-  for (let i = 1; i <= recordCount; i++) {
-    const symbol = symbols[Math.floor(Math.random() * symbols.length)];
-    const buyerBroker = Math.floor(Math.random() * 91) + 1;
-    let sellerBroker = Math.floor(Math.random() * 91) + 1;
-    while (sellerBroker === buyerBroker) {
-      sellerBroker = Math.floor(Math.random() * 91) + 1;
-    }
-    
-    const qtyOptions = [10, 20, 50, 100, 100, 150, 200, 200, 500, 1000, 1500, 2000, 5000];
-    const quantity = qtyOptions[Math.floor(Math.random() * qtyOptions.length)];
-    
-    let hash = 0;
-    for (let c = 0; c < symbol.length; c++) {
-      hash = (hash * 31 + symbol.charCodeAt(c)) % 10000;
-    }
-    const rate = 150 + (hash % 1350);
-    const amount = quantity * rate;
-    
-    const contractNo = dateStr.replace(/-/g, "") + "01" + String(i).padStart(6, "0");
-
-    records.push({
-      sn: i,
-      contractNo,
-      symbol,
-      buyerBroker,
-      sellerBroker,
-      quantity,
-      rate,
-      amount,
-    });
-  }
-
-  const output = {
-    date: dateStr,
-    totalRecords: records.length,
-    records,
-  };
-
-  try {
-    const dir = path.dirname(FLOORSHEET_FILE);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
-    fs.writeFileSync(FLOORSHEET_FILE, JSON.stringify(output, null, 2));
-  } catch (err) {
-    console.error("Failed to write mock floorsheet:", err.message);
-  }
-
-  return output;
-}
-
 function readFloorsheet() {
   try {
     if (fs.existsSync(FLOORSHEET_FILE)) {
@@ -4244,7 +4174,7 @@ function readFloorsheet() {
       }
     }
   } catch {}
-  return generateMockFloorsheetData();
+  return { date: null, records: [], totalRecords: 0 };
 }
 
 app.get("/api/floorsheet", (req, res) => {
@@ -4381,18 +4311,9 @@ app.get("/api/floorsheet/scrape", rateLimit, async (req, res) => {
     broadcast({ type: "floorsheet_scrape_complete", timestamp: new Date().toISOString(), result: { date: fetchDate, totalRecords: records.length } });
     res.json({ message: "Floorsheet scrape completed", timestamp, result: { date: fetchDate, totalRecords: records.length } });
   } catch (err) {
-    console.error("Floorsheet scrape error, falling back to mock data:", err.message);
-    const mockData = generateMockFloorsheetData();
-    broadcast({
-      type: "floorsheet_scrape_complete",
-      timestamp: new Date().toISOString(),
-      result: { date: mockData.date, totalRecords: mockData.totalRecords, note: "Generated Mock Data" }
-    });
-    res.json({
-      message: "Floorsheet scrape completed (Generated Mock Data)",
-      timestamp,
-      result: { date: mockData.date, totalRecords: mockData.totalRecords }
-    });
+    console.error("Floorsheet scrape error:", err.message);
+    broadcast({ type: "floorsheet_scrape_error", timestamp: new Date().toISOString(), error: err.message });
+    res.status(500).json({ error: "Floorsheet scrape failed", details: err.message });
   }
 });
 
@@ -4400,43 +4321,7 @@ app.get("/api/floorsheet/scrape", rateLimit, async (req, res) => {
 // BROKER ANALYSIS - Advanced broker analytics endpoints
 // ═══════════════════════════════════════════════════════════
 
-function generateBrokerTrendData(days) {
-  const history = [];
-  const baseDate = new Date();
-  const brokerCount = 91;
-  for (let d = days - 1; d >= 0; d--) {
-    const date = new Date(baseDate);
-    date.setDate(date.getDate() - d);
-    if (date.getDay() === 0 || date.getDay() === 6) continue;
-    const dateStr = date.toISOString().split("T")[0];
-    const dayHash = (d * 1337 + 42) % 10000;
-    const brokers = [];
-    for (let i = 1; i <= brokerCount; i++) {
-      const hash = ((i * 7919 + d * 31) % 10000);
-      const buyQty = 5000 + (hash * 31) % 500000;
-      const buyAmt = buyQty * (800 + (hash % 1500));
-      const sellQty = 3000 + (hash * 47) % 480000;
-      const sellAmt = sellQty * (800 + (hash % 1500));
-      const turnover = buyAmt + sellAmt;
-      const netQty = buyQty - sellQty;
-      brokers.push({ brokerNo: i, buyQty, buyAmt, sellQty, sellAmt, turnover, netQty });
-    }
-    const totalBuyAmt = brokers.reduce((s, b) => s + b.buyAmt, 0);
-    const totalSellAmt = brokers.reduce((s, b) => s + b.sellAmt, 0);
-    const totalBuyQty = brokers.reduce((s, b) => s + b.buyQty, 0);
-    const totalSellQty = brokers.reduce((s, b) => s + b.sellQty, 0);
-    const netBuyers = brokers.filter(b => b.netQty > 0).length;
-    const netSellers = brokers.filter(b => b.netQty < 0).length;
-    history.push({
-      date: dateStr, totalBuyAmt, totalSellAmt, totalBuyQty, totalSellQty,
-      netBuyers, netSellers, turnover: totalBuyAmt + totalSellAmt,
-      topBuyers: brokers.sort((a, b) => b.buyAmt - a.buyAmt).slice(0, 5).map(b => ({ brokerNo: b.brokerNo, buyAmt: b.buyAmt, turnover: b.turnover })),
-      topSellers: brokers.sort((a, b) => b.sellAmt - a.sellAmt).slice(0, 5).map(b => ({ brokerNo: b.brokerNo, sellAmt: b.sellAmt, turnover: b.turnover })),
-      brokerDetail: brokers,
-    });
-  }
-  return history;
-}
+
 
 app.get("/api/brokers/analysis/trends", (req, res) => {
   const days = Math.min(parseInt(req.query.days) || 30, 90);

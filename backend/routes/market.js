@@ -242,8 +242,11 @@ module.exports = function setupMarketRoutes(app, deps) {
         if (latest.published_date !== latestDate) continue;
 
         const close = parseFloat(latest.close) || 0;
+        const open = parseFloat(latest.open) || 0;
         const volume = parseInt(latest.traded_quantity) || 0;
         const turnover = parseFloat(latest.traded_amount) || 0;
+
+        if (close <= 0 || open <= 0) continue;
 
         let pctChange = parseFloat(latest.per_change);
         if (!Number.isFinite(pctChange)) {
@@ -255,6 +258,7 @@ module.exports = function setupMarketRoutes(app, deps) {
             pctChange = 0;
           }
         }
+        if (Math.abs(pctChange) > 25) continue;
 
         totalVolume += volume;
         totalTurnover += turnover;
@@ -269,6 +273,67 @@ module.exports = function setupMarketRoutes(app, deps) {
       }
 
       res.json({ totalCompanies: counted, totalVolume, totalTurnover, advance, decline, unchanged, upperCircuit, lowerCircuit, latestDate });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get("/api/market-summary/stocks", (req, res) => {
+    try {
+      const { category } = req.query;
+      const validCategories = ["advance", "decline", "unchanged", "upperCircuit", "lowerCircuit"];
+      if (!category || !validCategories.includes(category)) {
+        return res.status(400).json({ error: `Invalid category. Valid: ${validCategories.join(", ")}` });
+      }
+
+      const all = getAllCompanyData();
+      let latestDate = null;
+      for (const { records } of all) {
+        if (!records || records.length === 0) continue;
+        const d = records[records.length - 1].published_date;
+        if (!latestDate || d > latestDate) latestDate = d;
+      }
+      if (!latestDate) return res.json({ stocks: [], category, date: null });
+
+      const stocks = [];
+      for (const { symbol, records } of all) {
+        if (!records || records.length === 0) continue;
+        const latest = records[records.length - 1];
+        if (latest.published_date !== latestDate) continue;
+
+        const close = parseFloat(latest.close) || 0;
+        const prev = records.length > 1 ? records[records.length - 2] : null;
+        let pctChange = parseFloat(latest.per_change);
+        if (!Number.isFinite(pctChange)) {
+          if (prev && prev.published_date < latestDate) {
+            const prevClose = parseFloat(prev.close) || close;
+            pctChange = prevClose !== 0 ? ((close - prevClose) / prevClose) * 100 : 0;
+          } else {
+            pctChange = 0;
+          }
+        }
+
+        let match = false;
+        if (category === "advance" && pctChange > 0) match = true;
+        else if (category === "decline" && pctChange < 0) match = true;
+        else if (category === "unchanged" && pctChange === 0) match = true;
+        else if (category === "upperCircuit" && pctChange >= 9.9) match = true;
+        else if (category === "lowerCircuit" && pctChange <= -9.9) match = true;
+
+        if (match) {
+          stocks.push({
+            symbol,
+            name: symbol,
+            category: CATEGORY_MAP[symbol] || "Other",
+            close,
+            change: Math.round(pctChange * 100) / 100,
+            volume: parseInt(latest.traded_quantity) || 0,
+          });
+        }
+      }
+
+      stocks.sort((a, b) => Math.abs(b.change) - Math.abs(a.change));
+      res.json({ stocks, category, date: latestDate, count: stocks.length });
     } catch (err) {
       res.status(500).json({ error: err.message });
     }

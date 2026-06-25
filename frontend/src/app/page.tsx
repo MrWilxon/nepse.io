@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import {
   TrendingUp,
@@ -14,6 +14,7 @@ import {
   ArrowRightLeft,
   AlertTriangle,
   Settings,
+  X,
 } from "lucide-react";
 import {
   BarChart,
@@ -57,6 +58,7 @@ export default function Home() {
   const [marketStatus, setMarketStatus] = useState<MarketStatus | null>(null);
   const [connectionError, setConnectionError] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [stockModal, setStockModal] = useState<{ category: string; label: string } | null>(null);
 
   const { widgets, enabled: enabledWidgets, toggleWidget, moveWidget, resetWidgets, reorderWidgets, applyTemplate } =
     useDashboardWidgets();
@@ -158,7 +160,11 @@ export default function Home() {
         {/* SECTION 1: Market Snapshot Hero                     */}
         {/* ═══════════════════════════════════════════════════ */}
         {hasId("snapshot") && (
-          <MarketSnapshotHero marketSummary={marketSummary} marketStatus={marketStatus} />
+          <MarketSnapshotHero
+            marketSummary={marketSummary}
+            marketStatus={marketStatus}
+            onMetricClick={(category, label) => setStockModal({ category, label })}
+          />
         )}
 
         {/* ═══════════════════════════════════════════════════ */}
@@ -293,6 +299,9 @@ export default function Home() {
           </div>
         )}
       </div>
+
+      {/* Stock List Modal */}
+      {stockModal && <StockListModal category={stockModal.category} label={stockModal.label} onClose={() => setStockModal(null)} />}
     </ErrorBoundary>
   );
 }
@@ -321,9 +330,11 @@ function SectionHeader({
 function MarketSnapshotHero({
   marketSummary,
   marketStatus,
+  onMetricClick,
 }: {
   marketSummary: MarketSummary | null;
   marketStatus: MarketStatus | null;
+  onMetricClick?: (category: string, label: string) => void;
 }) {
   const total = marketSummary
     ? marketSummary.advance + marketSummary.decline + marketSummary.unchanged
@@ -383,30 +394,35 @@ function MarketSnapshotHero({
             value={marketSummary?.advance?.toString() || "-"}
             icon={<TrendingUp className="h-3.5 w-3.5" />}
             color="text-green-400"
+            onClick={() => onMetricClick?.("advance", "Advancing Stocks")}
           />
           <MetricPill
             label="Decline"
             value={marketSummary?.decline?.toString() || "-"}
             icon={<TrendingDown className="h-3.5 w-3.5" />}
             color="text-red-400"
+            onClick={() => onMetricClick?.("decline", "Declining Stocks")}
           />
           <MetricPill
             label="Unchanged"
             value={marketSummary?.unchanged?.toString() || "-"}
             icon={<Minus className="h-3.5 w-3.5" />}
             color="text-gray-400"
+            onClick={() => onMetricClick?.("unchanged", "Unchanged Stocks")}
           />
           <MetricPill
             label="+Ve Circuit"
             value={marketSummary?.upperCircuit?.toString() || "0"}
             icon={<Zap className="h-3.5 w-3.5" />}
             color="text-green-300"
+            onClick={() => onMetricClick?.("upperCircuit", "+Ve Circuit Stocks")}
           />
           <MetricPill
             label="-Ve Circuit"
             value={marketSummary?.lowerCircuit?.toString() || "0"}
             icon={<Zap className="h-3.5 w-3.5" />}
             color="text-red-300"
+            onClick={() => onMetricClick?.("lowerCircuit", "-Ve Circuit Stocks")}
           />
         </div>
       </div>
@@ -452,14 +468,19 @@ function MetricPill({
   value,
   icon,
   color,
+  onClick,
 }: {
   label: string;
   value: string;
   icon: React.ReactNode;
   color: string;
+  onClick?: () => void;
 }) {
   return (
-    <div className="text-center">
+    <div
+      className={`text-center ${onClick ? "cursor-pointer hover:opacity-80 transition-opacity" : ""}`}
+      onClick={onClick}
+    >
       <div className={`flex items-center justify-center gap-1 mb-0.5 ${color}`}>
         {icon}
         <span className="text-[10px] font-medium">{label}</span>
@@ -623,6 +644,103 @@ function MoverCard({
         {items.length === 0 && (
           <div className="text-center py-4 text-xs text-muted-theme">No data available</div>
         )}
+      </div>
+    </div>
+  );
+}
+
+function StockListModal({
+  category,
+  label,
+  onClose,
+}: {
+  category: string;
+  label: string;
+  onClose: () => void;
+}) {
+  const [stocks, setStocks] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [date, setDate] = useState("");
+
+  useEffect(() => {
+    fetch(`${API_BASE}/api/market-summary/stocks?category=${category}`)
+      .then((r) => r.json())
+      .then((data) => {
+        setStocks(data.stocks || []);
+        setDate(data.date || "");
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  }, [category]);
+
+  useEffect(() => {
+    const handleEsc = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", handleEsc);
+    return () => window.removeEventListener("keydown", handleEsc);
+  }, [onClose]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
+      <div
+        className="bg-[var(--bg-card)] border border-theme rounded-xl shadow-2xl w-full max-w-lg max-h-[80vh] flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between px-5 py-4 border-b border-theme">
+          <div>
+            <h2 className="text-sm font-bold text-primary-theme">{label}</h2>
+            {date && <p className="text-[10px] text-muted-theme mt-0.5">{date}</p>}
+          </div>
+          <button onClick={onClose} className="rounded-lg p-1.5 hover:bg-hover-theme text-muted-theme">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="overflow-y-auto flex-1">
+          {loading ? (
+            <div className="p-6 space-y-2">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <div key={i} className="h-10 rounded bg-input-theme animate-pulse" />
+              ))}
+            </div>
+          ) : stocks.length === 0 ? (
+            <div className="p-8 text-center text-xs text-muted-theme">No stocks in this category</div>
+          ) : (
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-theme">
+                  <th className="text-left px-5 py-2.5 text-[10px] font-semibold text-muted-theme uppercase">Symbol</th>
+                  <th className="text-left px-5 py-2.5 text-[10px] font-semibold text-muted-theme uppercase">Sector</th>
+                  <th className="text-right px-5 py-2.5 text-[10px] font-semibold text-muted-theme uppercase">Close</th>
+                  <th className="text-right px-5 py-2.5 text-[10px] font-semibold text-muted-theme uppercase">Change %</th>
+                  <th className="text-right px-5 py-2.5 text-[10px] font-semibold text-muted-theme uppercase">Volume</th>
+                </tr>
+              </thead>
+              <tbody>
+                {stocks.map((s, i) => (
+                  <tr
+                    key={s.symbol}
+                    className={`border-b border-theme/50 hover:bg-hover-theme cursor-pointer transition-colors ${i % 2 === 0 ? "" : "bg-page/30"}`}
+                    onClick={() => { window.location.href = `/company/${s.symbol}`; }}
+                  >
+                    <td className="px-5 py-2.5">
+                      <span className="text-xs font-bold text-primary-theme bg-kbd-theme px-2 py-0.5 rounded">{s.symbol}</span>
+                    </td>
+                    <td className="px-5 py-2.5 text-[11px] text-muted-theme">{s.category}</td>
+                    <td className="px-5 py-2.5 text-xs text-primary-theme font-mono text-right">Rs. {s.close.toFixed(2)}</td>
+                    <td className="px-5 py-2.5 text-right">
+                      <span className={`text-xs font-mono font-medium ${s.change >= 0 ? "text-green-500" : "text-red-500"}`}>
+                        {s.change >= 0 ? "+" : ""}{s.change.toFixed(2)}%
+                      </span>
+                    </td>
+                    <td className="px-5 py-2.5 text-xs text-muted-theme font-mono text-right">{s.volume.toLocaleString()}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+        <div className="px-5 py-2.5 border-t border-theme text-[10px] text-muted-theme">
+          {stocks.length} stocks · Click any row to view details
+        </div>
       </div>
     </div>
   );

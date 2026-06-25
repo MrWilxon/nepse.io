@@ -417,47 +417,92 @@ const companyDataCache = new Map();
 let dataLoaded = false;
 
 async function preloadAllCompanyData() {
-  if (!supabase) { console.log("No Supabase connection — skipping preload"); return; }
-  console.log("Loading all company data from Supabase...");
-  const { data: companies, error } = await supabase.from("companies").select("symbol");
-  if (error) { console.error("Failed to load companies:", error.message); return; }
-
-  const newCache = new Map();
-  for (const { symbol } of companies) {
-    let allRows = [];
-    let offset = 0;
-    const chunkSize = 1000;
-    while (true) {
-      const { data: chunk } = await supabase
-        .from("stock_prices")
-        .select("published_date, open, high, low, close, per_change, traded_quantity, traded_amount, status")
-        .eq("symbol", symbol)
-        .order("published_date", { ascending: true })
-        .range(offset, offset + chunkSize - 1);
-      if (!chunk || chunk.length === 0) break;
-      allRows = allRows.concat(chunk);
-      if (chunk.length < chunkSize) break;
-      offset += chunkSize;
-    }
-
-    if (allRows.length > 0) {
-      newCache.set(symbol, allRows.map(r => ({
-        published_date: r.published_date,
-        open: String(r.open ?? ""),
-        high: String(r.high ?? ""),
-        low: String(r.low ?? ""),
-        close: String(r.close ?? ""),
-        per_change: r.per_change == null ? "nan" : String(r.per_change),
-        traded_quantity: String(r.traded_quantity ?? "0"),
-        traded_amount: String(r.traded_amount ?? "0"),
-        status: String(r.status ?? "0"),
-      })));
+  if (supabase) {
+    try {
+      console.log("Loading all company data from Supabase...");
+      const { data: companies, error } = await Promise.race([
+        supabase.from("companies").select("symbol"),
+        new Promise((_, rej) => setTimeout(() => rej(new Error("Supabase timeout")), 10000)),
+      ]);
+      if (error) { console.error("Failed to load companies:", error.message); } else {
+        const newCache = new Map();
+        for (const { symbol } of companies) {
+          let allRows = [];
+          let offset = 0;
+          const chunkSize = 1000;
+          while (true) {
+            const { data: chunk } = await Promise.race([
+              supabase
+                .from("stock_prices")
+                .select("published_date, open, high, low, close, per_change, traded_quantity, traded_amount, status")
+                .eq("symbol", symbol)
+                .order("published_date", { ascending: true })
+                .range(offset, offset + chunkSize - 1),
+              new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), 10000)),
+            ]);
+            if (!chunk || chunk.length === 0) break;
+            allRows = allRows.concat(chunk);
+            if (chunk.length < chunkSize) break;
+            offset += chunkSize;
+          }
+          if (allRows.length > 0) {
+            newCache.set(symbol, allRows.map(r => ({
+              published_date: r.published_date,
+              open: String(r.open ?? ""),
+              high: String(r.high ?? ""),
+              low: String(r.low ?? ""),
+              close: String(r.close ?? ""),
+              per_change: r.per_change == null ? "nan" : String(r.per_change),
+              traded_quantity: String(r.traded_quantity ?? "0"),
+              traded_amount: String(r.traded_amount ?? "0"),
+              status: String(r.status ?? "0"),
+            })).filter(r => {
+              const close = parseFloat(r.close) || 0;
+              const open = parseFloat(r.open) || 0;
+              if (close <= 0 || open <= 0) return false;
+              const pct = parseFloat(r.per_change);
+              if (Number.isFinite(pct) && Math.abs(pct) > 25) return false;
+              return true;
+            }));
+          }
+        }
+        for (const [k, v] of newCache) companyDataCache.set(k, v);
+        for (const k of companyDataCache.keys()) { if (!newCache.has(k)) companyDataCache.delete(k); }
+      }
+    } catch (e) {
+      console.error("Supabase preload failed:", e.message);
     }
   }
-  for (const [k, v] of newCache) companyDataCache.set(k, v);
-  for (const k of companyDataCache.keys()) { if (!newCache.has(k)) companyDataCache.delete(k); }
+
+  if (companyDataCache.size === 0 && fs.existsSync(DATA_DIR)) {
+    console.log("Loading company data from CSV files...");
+    const files = fs.readdirSync(DATA_DIR).filter(f => f.endsWith(".csv"));
+    for (const file of files) {
+      const symbol = file.replace(".csv", "").toUpperCase();
+      if (companyDataCache.has(symbol)) continue;
+      try {
+        const raw = fs.readFileSync(path.join(DATA_DIR, file), "utf-8");
+        const records = parse(raw, { columns: true, skip_empty_lines: true, trim: true });
+        if (records.length > 0) {
+          companyDataCache.set(symbol, records.map(r => ({
+            published_date: r.published_date || r.date || "",
+            open: String(r.open ?? ""),
+            high: String(r.high ?? ""),
+            low: String(r.low ?? ""),
+            close: String(r.close ?? ""),
+            per_change: r.per_change == null ? "nan" : String(r.per_change),
+            traded_quantity: String(r.traded_quantity ?? r.volume ?? "0"),
+            traded_amount: String(r.traded_amount ?? r.turnover ?? "0"),
+            status: String(r.status ?? "0"),
+          })));
+        }
+      } catch {}
+    }
+    console.log(`Loaded ${companyDataCache.size} companies from CSV files`);
+  }
+
   dataLoaded = true;
-  console.log(`Loaded ${companyDataCache.size} companies from Supabase`);
+  console.log(`Total companies loaded: ${companyDataCache.size}`);
 }
 
 function readCompanyCSV(symbol) {
@@ -549,10 +594,24 @@ async function scrapeLatestPrices() {
         status: String(close > open ? 1 : close < open ? -1 : 0),
       };
     })
-    .filter((r) => parseFloat(r.close) > 0);
+    .filter((r) => {
+      const close = parseFloat(r.close);
+      const open = parseFloat(r.open);
+      if (close <= 0 || open <= 0) return false;
+      const pct = parseFloat(r.per_change);
+      if (!Number.isFinite(pct) || Math.abs(pct) > 25) return false;
+      if (close > open * 10 || open > close * 10) return false;
+      return true;
+    });
 
   if (rows.length === 0) {
     log("No valid rows after normalization");
+    return;
+  }
+
+  const validRatio = rows.length / items.length;
+  if (validRatio < 0.5 && items.length > 10) {
+    log(`Suspicious: only ${rows.length}/${items.length} rows valid (${(validRatio * 100).toFixed(0)}%). Aborting to protect data.`);
     return;
   }
 

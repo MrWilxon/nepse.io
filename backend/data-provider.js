@@ -296,7 +296,7 @@ async function getEarningsCalendar(force = false) {
   }
 
   updateStatus(cacheKey, false, 0);
-  return [];
+  return generateSyntheticEarnings();
 }
 
 async function getBrokers(force = false) {
@@ -443,7 +443,48 @@ function generateSyntheticInsiderTrading() {
 }
 
 function generateSyntheticEarnings() {
-  return [];
+  const symbols = [
+    "NABIL", "EBL", "NICA", "GBIME", "SANIMA", "NIB", "PCBL", "SRBL", "ADBL",
+    "MEGA", "CBL", "PRVU", "BOKL", "NMB", "SBL", "NCCB", "KBL", "LBL",
+    "HBL", "SCB", "NBB", "SBI", "CZBIL",
+  ];
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const earnings = [];
+
+  const quarters = [
+    { month: 1, label: "Q3 FY" + (currentYear - 1).toString().slice(-2) + "/" + currentYear.toString().slice(-2) },
+    { month: 4, label: "Q4 FY" + (currentYear - 1).toString().slice(-2) + "/" + currentYear.toString().slice(-2) },
+    { month: 9, label: "Q1 FY" + currentYear.toString().slice(-2) + "/" + (currentYear + 1).toString().slice(-2) },
+    { month: 12, label: "Q2 FY" + currentYear.toString().slice(-2) + "/" + (currentYear + 1).toString().slice(-2) },
+  ];
+
+  for (const sym of symbols) {
+    for (const q of quarters) {
+      const seed = (sym.charCodeAt(0) * 13 + q.month * 7) % 28;
+      const day = Math.max(1, Math.min(28, seed + 1));
+      const d = new Date(currentYear, q.month - 1, day);
+      if (d < new Date(now.getFullYear(), now.getMonth() - 1, 1)) continue;
+
+      const eps = Math.round((5 + ((sym.charCodeAt(0) * 31 + q.month * 17) % 40)) * 100) / 100;
+      const dateStr = d.toISOString().split("T")[0];
+      earnings.push({
+        symbol: sym,
+        announcementDate: dateStr,
+        date: dateStr,
+        event: q.label + " Results",
+        quarter: q.label,
+        estimatedEPS: eps,
+        actualEPS: null,
+        previousEPS: Math.round((eps * (0.7 + ((sym.charCodeAt(1) || 65) % 60) / 100)) * 100) / 100,
+        sector: "Banking",
+        _synthetic: true,
+      });
+    }
+  }
+
+  earnings.sort((a, b) => (a.announcementDate || "").localeCompare(b.announcementDate || ""));
+  return earnings;
 }
 
 function generateSyntheticBrokers() {

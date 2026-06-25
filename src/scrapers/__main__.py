@@ -21,9 +21,6 @@ def main():
         elif scraper_name == "ipo":
             from .ipo import scrape_ipo
             data = scrape_ipo(force=force)
-        elif scraper_name == "dividends":
-            from .dividends import scrape_dividends
-            data = scrape_dividends(symbols=symbols or None, force=force)
         elif scraper_name == "mutual_funds":
             from .mutual_funds import scrape_mutual_funds
             data = scrape_mutual_funds(force=force)

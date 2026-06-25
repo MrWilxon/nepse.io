@@ -19,7 +19,7 @@ import KeyboardShortcutsProvider from "@/components/keyboard-shortcuts";
 import MobileNav from "@/components/mobile-nav";
 import Sidebar from "@/components/sidebar";
 import Footer from "@/components/footer";
-import { AdblockDetector } from "@/components/adblock-detector";
+import { AdblockDetector, useAdblockDetector } from "@/components/adblock-detector";
 import { API_BASE } from "@/lib/api";
 import { LeaderboardAd } from "@/components/adsense";
 
@@ -40,6 +40,7 @@ const geistMono = Geist_Mono({
 });
 
 function InnerLayout({ children }: { children: React.ReactNode }) {
+  const { detected, loading, recheck } = useAdblockDetector();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [marketStatus, setMarketStatus] = useState<MarketStatus | null>(null);
   const [cmdOpen, setCmdOpen] = useState(false);
@@ -71,11 +72,14 @@ function InnerLayout({ children }: { children: React.ReactNode }) {
     setScraping(false);
   };
 
+  if (detected) {
+    return <AdblockDetector detected={detected} loading={loading} recheck={recheck} />;
+  }
+
   return (
     <>
       <CommandPalette open={cmdOpen} onClose={() => setCmdOpen(false)} />
       <OnboardingTour />
-      <AdblockDetector />
 
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 

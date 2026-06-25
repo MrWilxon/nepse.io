@@ -1,4 +1,4 @@
-﻿require("dotenv").config();
+require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const fs = require("fs");
@@ -645,9 +645,14 @@ async function scrapeLatestPrices() {
       // If upsert constraint doesn't exist, fall back to delete+insert
       if (error.message.includes("on conflict") || error.message.includes("unique")) {
         log("Trying delete+insert fallback for this batch...");
-        const syms = batch.map((r) => r.symbol);
-        const date = batch[0].published_date;
-        await supabase.from("stock_prices").delete().eq("published_date", date).in("symbol", syms);
+        const byDate = {};
+        for (const r of batch) {
+          if (!byDate[r.published_date]) byDate[r.published_date] = [];
+          byDate[r.published_date].push(r.symbol);
+        }
+        for (const [date, syms] of Object.entries(byDate)) {
+          await supabase.from("stock_prices").delete().eq("published_date", date).in("symbol", syms);
+        }
         const { error: insErr } = await supabase.from("stock_prices").insert(batch);
         if (insErr) {
           log(`Insert fallback also failed: ${insErr.message}`);
@@ -1336,7 +1341,7 @@ app.get("/api/export/:symbol/csv", (req, res) => {
   res.send(csv);
 });
 
-app.post("/api/screener", rateLimit, (req, res) => {
+app.post("/api/screener", rateLimit, async (req, res) => {
   try {
     const { filters = [], sort, limit = 50 } = req.body;
     const allData = getAllCompanyData();
@@ -1345,6 +1350,7 @@ app.post("/api/screener", rateLimit, (req, res) => {
     for (const { symbol, records } of allData) {
       const data = parseRecords(records);
       if (data.length < 5) continue;
+      const fund = await calculateFundamentals(symbol) || {};
       const closes = data.map((r) => r.close);
       const highs = data.map((r) => r.high);
       const lows = data.map((r) => r.low);
@@ -1412,6 +1418,13 @@ app.post("/api/screener", rateLimit, (req, res) => {
         ema_12_above_ema_26: ema12[n] !== null && ema26[n] !== null ? ema12[n] > ema26[n] : null,
         price_above_sma_20: sma20[n] !== null ? latest.close > sma20[n] : null,
         price_above_sma_50: sma50[n] !== null ? latest.close > sma50[n] : null,
+        pe_ratio: fund.pe !== undefined ? fund.pe : null,
+        pb_ratio: fund.pb !== undefined ? fund.pb : null,
+        eps: fund.eps !== undefined ? fund.eps : null,
+        peg_ratio: fund.pegRatio !== undefined ? fund.pegRatio : null,
+        dividend_yield: fund.dividendYield !== undefined ? parseFloat(fund.dividendYield) || 0 : null,
+        book_value: fund.bookValue !== undefined ? fund.bookValue : null,
+        market_cap: fund.marketCap !== undefined ? fund.marketCap : null,
       };
 
       let pass = true;
@@ -1911,7 +1924,7 @@ async function loadFundamentalsCache() {
 }
 
 async function calculateFundamentals(symbol) {
-  const records = readCompanyCSV(symbol);
+  const records = companyDataCache.get(symbol) || readCompanyCSV(symbol);
   if (!records || records.length === 0) return null;
   const latest = records[records.length - 1];
   const close = parseFloat(latest.close) || 0;

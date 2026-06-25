@@ -155,7 +155,7 @@ def _extract_date_from_url(url):
     match = re.search(r"-(\d{4}-\d{2}-\d{2})(?:/|$)", url)
     if match:
         return match.group(1)
-    return ""
+    return datetime.now().strftime("%Y-%m-%d")
 
 
 def _extract_symbol_from_title(title):

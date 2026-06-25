@@ -42,21 +42,23 @@ function runScraperSafe(name, fn, timeout = 60000) {
   });
 }
 
+function getNepalTime() {
+  // Shift epoch by Nepal's offset (+5:45 = 345 minutes) so projection methods (e.g. getUTCDay) return Nepal local values
+  return new Date(Date.now() + 345 * 60 * 1000);
+}
+
 function isTradingHours() {
-  const now = new Date();
-  const utcHour = now.getUTCHours();
-  const utcMin = now.getUTCMinutes();
-  const utcTotal = utcHour * 60 + utcMin;
-  const nepseTotal = utcTotal + (5 * 60 + 45);
-  const hour = Math.floor(nepseTotal / 60) % 24;
-  const min = nepseTotal % 60;
-  const day = now.getUTCDay();
+  const nepalTime = getNepalTime();
+  const day = nepalTime.getUTCDay();
+  const hour = nepalTime.getUTCHours();
+  const min = nepalTime.getUTCMinutes();
   const t = hour * 60 + min;
   return day >= 1 && day <= 5 && t >= 660 && t <= 900;
 }
 
 function isWeekday() {
-  const day = new Date().getUTCDay();
+  const nepalTime = getNepalTime();
+  const day = nepalTime.getUTCDay();
   return day >= 1 && day <= 5;
 }
 

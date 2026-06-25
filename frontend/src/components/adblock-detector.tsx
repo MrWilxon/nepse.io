@@ -3,16 +3,39 @@
 import { useEffect, useState, useCallback } from "react";
 import { ShieldAlert, ChevronDown, RefreshCw } from "lucide-react";
 
-function useAdblockDetector() {
+export function useAdblockDetector() {
   const [detected, setDetected] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  const detect = useCallback(() => {
+  const detect = useCallback(async () => {
     setLoading(true);
-    setDetected(false);
 
-    // Method 1: Bait element detection
-    // Create an element that adblockers typically target
+    // 1. Fast Network Check
+    let adblockDetected = false;
+    try {
+      // Fetching the adsbygoogle script directly is blocked by network-level adblockers
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 1500); // 1.5s timeout
+      await fetch("https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js", {
+        method: "HEAD",
+        mode: "no-cors",
+        cache: "no-store",
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+    } catch (err) {
+      if (err instanceof Error && err.name !== "AbortError") {
+        adblockDetected = true;
+      }
+    }
+
+    if (adblockDetected) {
+      setDetected(true);
+      setLoading(false);
+      return;
+    }
+
+    // 2. Bait Element Check
     const bait = document.createElement("div");
     bait.className = "pub_300x250 pub_300x250m pub_728x90 text-ad textAd text_ad text_ads text-ads text-ad-links text-ad-links";
     bait.style.cssText = "width:1px;height:1px;position:absolute;left:-9999px;top:-9999px;";
@@ -20,86 +43,58 @@ function useAdblockDetector() {
     bait.setAttribute("data-ad-slot", "1234567890");
     document.body.appendChild(bait);
 
-    // Method 2: Try to create a fake ad request via Google Ads script
-    let googleAdsBlocked = false;
-    
-    setTimeout(() => {
-      let adblockDetected = false;
+    // Wait 500ms for cosmetic filters to apply
+    await new Promise((resolve) => setTimeout(resolve, 500));
 
-      // Check if bait was removed or hidden by adblocker
-      if (!document.body.contains(bait)) {
+    if (!document.body.contains(bait)) {
+      adblockDetected = true;
+    } else {
+      const style = window.getComputedStyle(bait);
+      if (
+        style.display === "none" ||
+        style.visibility === "hidden" ||
+        style.opacity === "0" ||
+        bait.offsetHeight === 0 ||
+        bait.offsetWidth === 0
+      ) {
         adblockDetected = true;
-      } else {
-        const style = window.getComputedStyle(bait);
-        if (
-          style.display === "none" ||
-          style.visibility === "hidden" ||
-          style.opacity === "0" ||
-          bait.offsetHeight === 0 ||
-          bait.offsetWidth === 0
-        ) {
-          adblockDetected = true;
-        }
       }
+    }
 
-      // Clean up bait
-      if (bait.parentNode) {
-        bait.parentNode.removeChild(bait);
-      }
+    if (bait.parentNode) {
+      bait.parentNode.removeChild(bait);
+    }
 
-      // Method 2: Check if Google Ads script actually loaded
-      if (!adblockDetected) {
-        const adsbygoogle = (window as any).adsbygoogle;
-        if (!adsbygoogle || !Array.isArray(adsbygoogle)) {
-          // Script didn't load - could be adblocker
-          // But give it more time, might just be slow
-          googleAdsBlocked = true;
-        }
-      }
-
-      // Method 3: Try to push an ad and see if it fails
-      if (!adblockDetected && googleAdsBlocked) {
-        // If the script array exists but push fails, adblocker might be interfering
-        try {
-          const adsbygoogle = (window as any).adsbygoogle;
-          if (adsbygoogle && Array.isArray(adsbygoogle)) {
-            // Try a test push
-            const testEl = document.createElement("ins");
-            testEl.className = "adsbygoogle";
-            testEl.style.display = "none";
-            document.body.appendChild(testEl);
-            
-            try {
-              adsbygoogle.push({});
-              // If push succeeded, ads might be working
-            } catch {
-              adblockDetected = true;
-            } finally {
-              if (testEl.parentNode) {
-                testEl.parentNode.removeChild(testEl);
-              }
-            }
-          }
-        } catch {
-          // Error during check
-        }
-      }
-
-      setDetected(adblockDetected);
+    if (adblockDetected) {
+      setDetected(true);
       setLoading(false);
-    }, 3000); // Wait 3 seconds for everything to load
+      return;
+    }
+
+    // 3. Check if window.adsbygoogle was blocked
+    const adsbygoogle = (window as any).adsbygoogle;
+    if (!adsbygoogle || !Array.isArray(adsbygoogle)) {
+      // Script didn't load - wait another 1.5 seconds just in case it is slow
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+      const secondCheck = (window as any).adsbygoogle;
+      if (!secondCheck || !Array.isArray(secondCheck)) {
+        adblockDetected = true;
+      }
+    }
+
+    setDetected(adblockDetected);
+    setLoading(false);
   }, []);
 
   useEffect(() => {
-    // Wait for page to fully load before checking
-    const timer = setTimeout(detect, 3500);
+    // Start detection shortly after mount
+    const timer = setTimeout(detect, 500);
     return () => clearTimeout(timer);
   }, [detect]);
 
   const recheck = useCallback(() => {
     setLoading(true);
-    // Give time for adblocker changes to take effect
-    setTimeout(detect, 1000);
+    setTimeout(detect, 500);
   }, [detect]);
 
   return { detected, loading, recheck };
@@ -144,8 +139,13 @@ const adblockerInstructions = [
   },
 ];
 
-export function AdblockDetector() {
-  const { detected, loading, recheck } = useAdblockDetector();
+interface AdblockDetectorProps {
+  detected: boolean;
+  loading: boolean;
+  recheck: () => void;
+}
+
+export function AdblockDetector({ detected, loading, recheck }: AdblockDetectorProps) {
   const [expandedGuide, setExpandedGuide] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
 

@@ -462,7 +462,7 @@ export interface DividendCalendarEntry {
   symbol: string;
   companyName: string;
   sector: string;
-  type: "cash" | "bonus" | "rights";
+  type: "cash" | "bonus" | "rights" | "cash+bonus";
   amount: number;
   exDate: string;
   recordDate: string;
@@ -470,7 +470,10 @@ export interface DividendCalendarEntry {
   currentPrice: number;
   dividendYield: number;
   isUpcoming: boolean;
-  status: "upcoming" | "completed";
+  status: "upcoming" | "open" | "completed" | "closed";
+  ltp?: number | null;
+  cashDividend?: number;
+  bonusDividend?: number;
 }
 
 export interface DividendCalendarResponse {

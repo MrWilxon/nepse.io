@@ -102,6 +102,8 @@ export interface MarketSummary {
   advance: number;
   decline: number;
   unchanged: number;
+  upperCircuit: number;
+  lowerCircuit: number;
   latestDate: string;
 }
 

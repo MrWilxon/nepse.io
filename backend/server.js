@@ -458,139 +458,150 @@ function invalidateCSVCache() {
 
 // ═══════════════════════════════════════════════════════════
 // NEPSE LIVE PRICE SCRAPER
-// Fetches today's prices from NEPSE API and upserts to Supabase
+// Fetches today's prices from NEPSE proxy API and upserts to Supabase
 // ═══════════════════════════════════════════════════════════
 
-const NEPSE_BASE = "https://newweb.nepalstock.com.np/api";
-const DUMMY_DATA = [
-  575, 373, 147, 117, 239, 143, 157, 312, 161, 612,
-  512, 804, 163, 367, 59, 426, 377, 815, 385, 736,
-  327, 506, 655, 393, 443, 52, 636, 449, 504, 625,
-  324, 26, 189, 619, 595, 76, 705, 676, 620, 275,
-  451, 133, 679, 571, 123, 641, 533, 311, 149, 668,
-  627, 320, 452, 476, 380, 273, 271, 159, 154, 427,
-  176, 453, 523, 744, 207, 72, 102, 354, 283, 138,
-  658, 392, 22, 507, 734, 332, 542, 384, 331, 192,
-  115, 284, 360, 551, 291, 404, 190, 540, 663, 659,
-  402, 13, 737, 642, 335, 183, 750, 269, 410, 164,
-];
+const NEPSE_PROXY_URL = "https://nepseman-api-production.up.railway.app/api/v1/prices/today";
 
-function decodeNepseToken(token, salt) {
-  const saltArr = salt.split("");
-  let decoded = token.split("");
-  for (let i = 0; i < saltArr.length && i < 20; i++) {
-    const code = saltArr[i].charCodeAt(0);
-    const pos = code % decoded.length;
-    if (pos < decoded.length) {
-      decoded.splice(pos, 1);
-    }
+async function fetchWithTimeout(url, opts = {}, timeoutMs = 30000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...opts, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
   }
-  return decoded.join("");
 }
 
-async function nepseGet(method, endpoint, token, body = null) {
-  const opts = {
-    method,
-    headers: {
-      Authorization: `Salter ${token}`,
-      Accept: "application/json",
-      "Content-Type": "application/json",
-    },
-  };
-  if (body) opts.body = JSON.stringify(body);
-  const res = await fetch(`${NEPSE_BASE}${endpoint}`, opts);
-  if (!res.ok) throw new Error(`NEPSE ${endpoint} returned ${res.status}`);
-  return res.json();
-}
-
-async function fetchNepseToken() {
-  const res = await fetch(`${NEPSE_BASE}/authenticate/prove`, {
-    headers: { Accept: "application/json" },
-  });
-  if (!res.ok) throw new Error(`NEPSE prove returned ${res.status}`);
-  const prove = await res.json();
-  const decoded = decodeNepseToken(prove.accessToken, prove.salt);
-  return { token: decoded, prove };
-}
-
-async function fetchNepseTodayPrices() {
-  const { token, prove } = await fetchNepseToken();
-  const marketOpen = await nepseGet("GET", "/nots/nepse-data/market-open", token);
-  const marketId = parseInt(marketOpen.id) || 0;
-  const datePart = new Date().getDate();
-  const dynamicId = (DUMMY_DATA[marketId] || 0) + marketId + 2 * datePart;
-  const prices = await nepseGet("POST", "/nots/nepse-data/today-price", token, { id: dynamicId });
-  return prices;
+function safeNum(val, fallback = 0) {
+  if (val == null || val === "" || val === "N/A" || val === "-") return fallback;
+  const n = parseFloat(String(val).replace(/,/g, "").replace(/%/g, "").trim());
+  return Number.isFinite(n) ? n : fallback;
 }
 
 async function scrapeLatestPrices() {
   if (!supabase) {
-    console.log("No Supabase — skipping live price scrape");
+    console.log("[SCRAPE] No Supabase — skipping live price scrape");
     return;
   }
   const log = (msg) => console.log(`[SCRAPE ${new Date().toISOString()}] ${msg}`);
 
+  let items = [];
+
+  // ── Primary: NEPSE proxy API (handles auth internally) ──
   try {
-    log("Fetching latest prices from NEPSE API...");
-    const raw = await fetchNepseTodayPrices();
-    const items = Array.isArray(raw) ? raw : raw?.content || raw?.data || [];
-    if (!items.length) {
-      log("NEPSE returned no price data (market may be closed)");
-      return;
+    log("Fetching latest prices from NEPSE proxy...");
+    const proxyRes = await fetchWithTimeout(NEPSE_PROXY_URL, {
+      headers: { Accept: "application/json" },
+    }, 30000);
+    if (proxyRes.ok) {
+      const proxyData = await proxyRes.json();
+      items = Array.isArray(proxyData) ? proxyData : proxyData?.data || [];
+      log(`Proxy returned ${items.length} stocks`);
+    } else {
+      log(`Proxy returned HTTP ${proxyRes.status}`);
     }
-
-    const today = new Date().toISOString().slice(0, 10);
-    const rows = items
-      .filter((r) => r.symbol)
-      .map((r) => ({
-        symbol: r.symbol,
-        published_date: r.businessDate || today,
-        open: String(r.openPrice ?? r.open ?? ""),
-        high: String(r.highPrice ?? r.high ?? ""),
-        low: String(r.lowPrice ?? r.low ?? ""),
-        close: String(r.closePrice ?? r.lastTradedPrice ?? r.close ?? ""),
-        per_change: r.percentChange ?? r.perChange ?? "nan",
-        traded_quantity: String(r.totalTradeQuantity ?? r.tradeQuantity ?? r.volume ?? "0"),
-        traded_amount: String(r.totalTradedValue ?? r.turnover ?? "0"),
-        status: String(
-          parseFloat(r.closePrice ?? r.lastTradedPrice ?? 0) >
-          parseFloat(r.openPrice ?? r.open ?? 0)
-            ? 1
-            : parseFloat(r.closePrice ?? r.lastTradedPrice ?? 0) <
-              parseFloat(r.openPrice ?? r.open ?? 0)
-            ? -1
-            : 0
-        ),
-      }));
-
-    log(`Upserting ${rows.length} rows to Supabase...`);
-    const BATCH = 500;
-    let ok = 0;
-    for (let i = 0; i < rows.length; i += BATCH) {
-      const batch = rows.slice(i, i + BATCH);
-      const { error } = await supabase
-        .from("stock_prices")
-        .upsert(batch, { onConflict: "symbol,published_date", ignoreDuplicates: false });
-      if (error) log(`Batch error: ${error.message}`);
-      else ok += batch.length;
-    }
-    log(`Upserted ${ok}/${rows.length} price records`);
-
-    // Ensure companies table has all symbols
-    const symbols = rows.map((r) => ({ symbol: r.symbol }));
-    const { error: coErr } = await supabase
-      .from("companies")
-      .upsert(symbols, { onConflict: "symbol", ignoreDuplicates: true });
-    if (coErr) log(`Company upsert warning: ${coErr.message}`);
-
-    // Reload in-memory cache
-    invalidateCSVCache();
-    await preloadAllCompanyData();
-    log("Cache reloaded with fresh data");
   } catch (err) {
-    log(`Scrape failed: ${err.message}`);
+    log(`Proxy fetch failed: ${err.message}`);
   }
+
+  if (items.length === 0) {
+    log("No price data available (market may be closed or API down)");
+    return;
+  }
+
+  // ── Normalize to Supabase schema ──
+  const rows = items
+    .filter((r) => r.symbol)
+    .map((r) => {
+      const open = safeNum(r.openPrice);
+      const high = safeNum(r.highPrice);
+      const low = safeNum(r.lowPrice);
+      const close = safeNum(r.closePrice);
+      const prevClose = safeNum(r.previousDayClosePrice);
+      const pctChange = prevClose !== 0 ? Math.round(((close - prevClose) / prevClose) * 10000) / 100 : 0;
+      const volume = safeNum(r.totalTradeQuantity);
+      const turnover = safeNum(r.totalTradedValue);
+      return {
+        symbol: r.symbol,
+        published_date: r.businessDate || new Date().toISOString().slice(0, 10),
+        open: String(open),
+        high: String(high),
+        low: String(low),
+        close: String(close),
+        per_change: pctChange,
+        traded_quantity: String(volume),
+        traded_amount: String(turnover),
+        status: String(close > open ? 1 : close < open ? -1 : 0),
+      };
+    });
+
+  if (rows.length === 0) {
+    log("No valid rows after normalization");
+    return;
+  }
+
+  // ── Check if data is newer than what Supabase has ──
+  const newDate = rows[0].published_date;
+  const { data: existing } = await supabase
+    .from("stock_prices")
+    .select("published_date")
+    .eq("symbol", rows[0].symbol)
+    .order("published_date", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (existing && existing.published_date >= newDate) {
+    log(`Supabase already has data for ${existing.published_date} (newest: ${newDate}) — upserting anyway`);
+  }
+
+  // ── Upsert to Supabase in batches ──
+  log(`Upserting ${rows.length} rows for date ${newDate}...`);
+  const BATCH = 500;
+  let ok = 0;
+  let batchErrors = 0;
+  for (let i = 0; i < rows.length; i += BATCH) {
+    const batch = rows.slice(i, i + BATCH);
+    const { error } = await supabase
+      .from("stock_prices")
+      .upsert(batch, { onConflict: "symbol,published_date", ignoreDuplicates: false });
+    if (error) {
+      log(`Batch ${Math.floor(i / BATCH) + 1} error: ${error.message}`);
+      batchErrors++;
+      // If upsert constraint doesn't exist, fall back to delete+insert
+      if (error.message.includes("on conflict") || error.message.includes("unique")) {
+        log("Trying delete+insert fallback for this batch...");
+        const syms = batch.map((r) => r.symbol);
+        const date = batch[0].published_date;
+        await supabase.from("stock_prices").delete().eq("published_date", date).in("symbol", syms);
+        const { error: insErr } = await supabase.from("stock_prices").insert(batch);
+        if (insErr) {
+          log(`Insert fallback also failed: ${insErr.message}`);
+        } else {
+          ok += batch.length;
+          batchErrors--;
+        }
+      }
+    } else {
+      ok += batch.length;
+    }
+  }
+  log(`Upserted ${ok}/${rows.length} price records (${batchErrors} batch errors)`);
+
+  // ── Ensure companies table has all symbols ──
+  const symbols = [...new Set(rows.map((r) => r.symbol))];
+  const symbolRows = symbols.map((s) => ({ symbol: s, category: CATEGORY_MAP[s] || "Other" }));
+  const { error: coErr } = await supabase
+    .from("companies")
+    .upsert(symbolRows, { onConflict: "symbol", ignoreDuplicates: true });
+  if (coErr) log(`Company upsert warning: ${coErr.message}`);
+
+  // ── Reload in-memory cache ──
+  invalidateCSVCache();
+  await preloadAllCompanyData();
+  log("Cache reloaded with fresh data");
 }
+
 function SMA(data, period) {
   const result = [];
   for (let i = 0; i < data.length; i++) {
@@ -1132,6 +1143,8 @@ app.get("/api/market-summary", (req, res) => {
     let advance = 0;
     let decline = 0;
     let unchanged = 0;
+    let upperCircuit = 0;
+    let lowerCircuit = 0;
     const dates = [];
     for (const { symbol, records } of all) {
       if (!records || records.length === 0) continue;
@@ -1140,15 +1153,18 @@ app.get("/api/market-summary", (req, res) => {
       const prev = records.length > 1 ? parseFloat(records[records.length - 2].close) || close : close;
       const volume = parseInt(latest.traded_quantity) || 0;
       const turnover = parseFloat(latest.traded_amount) || 0;
+      const pctChange = prev !== 0 ? ((close - prev) / prev) * 100 : 0;
       totalVolume += volume;
       totalTurnover += turnover;
       dates.push(latest.published_date);
       if (close > prev) advance++;
       else if (close < prev) decline++;
       else unchanged++;
+      if (pctChange >= 9.9) upperCircuit++;
+      else if (pctChange <= -9.9) lowerCircuit++;
     }
     const latestDate = dates.sort().pop() || null;
-    res.json({ totalCompanies: all.length, totalVolume, totalTurnover, advance, decline, unchanged, latestDate });
+    res.json({ totalCompanies: all.length, totalVolume, totalTurnover, advance, decline, unchanged, upperCircuit, lowerCircuit, latestDate });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -1604,6 +1620,20 @@ app.post("/api/screener", rateLimit, (req, res) => {
 
 app.get("/api/market-status", (req, res) => {
   res.json(getMarketStatus());
+});
+
+app.get("/api/debug/scrape", async (req, res) => {
+  try {
+    await scrapeLatestPrices();
+    const { data: latest } = await supabase
+      .from("stock_prices")
+      .select("symbol, published_date, close")
+      .order("published_date", { ascending: false })
+      .limit(5);
+    res.json({ ok: true, latestRows: latest });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.get("/api/sectors/rotation", (req, res) => {
@@ -4431,6 +4461,7 @@ server.listen(PORT, () => {
   console.log(`Backend API running on http://localhost:${PORT}`);
   console.log(`WebSocket running on ws://localhost:${PORT}/ws`);
   scrapeLatestPrices()
+    .catch((err) => console.error("[SCRAPE] Startup scrape failed:", err.message))
     .then(() => preloadAllCompanyData())
     .then(() => {
       console.log("Data preload complete");

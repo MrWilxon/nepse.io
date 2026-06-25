@@ -365,7 +365,7 @@ function MarketSnapshotHero({
         </div>
 
         {/* Right: Key Metrics */}
-        <div className="flex items-center gap-6 md:gap-8">
+        <div className="flex items-center gap-4 md:gap-6 flex-wrap">
           <MetricPill
             label="Volume"
             value={marketSummary ? `${(marketSummary.totalVolume / 1_000_000).toFixed(1)}M` : "-"}
@@ -390,6 +390,24 @@ function MarketSnapshotHero({
             icon={<TrendingDown className="h-3.5 w-3.5" />}
             color="text-red-400"
           />
+          <MetricPill
+            label="Unchanged"
+            value={marketSummary?.unchanged?.toString() || "-"}
+            icon={<Minus className="h-3.5 w-3.5" />}
+            color="text-gray-400"
+          />
+          <MetricPill
+            label="+Ve Circuit"
+            value={marketSummary?.upperCircuit?.toString() || "0"}
+            icon={<Zap className="h-3.5 w-3.5" />}
+            color="text-green-300"
+          />
+          <MetricPill
+            label="-Ve Circuit"
+            value={marketSummary?.lowerCircuit?.toString() || "0"}
+            icon={<Zap className="h-3.5 w-3.5" />}
+            color="text-red-300"
+          />
         </div>
       </div>
 
@@ -400,8 +418,10 @@ function MarketSnapshotHero({
             <span className="text-[10px] font-semibold text-green-400">
               Advance {marketSummary.advance} ({advPct.toFixed(0)}%)
             </span>
-            <span className="text-[10px] font-semibold text-muted-theme">
-              A/D Ratio {(marketSummary.advance / (marketSummary.decline + 1)).toFixed(2)}
+            <span className="text-[10px] font-semibold text-muted-theme flex items-center gap-2">
+              <span>Unchanged {marketSummary.unchanged || 0}</span>
+              <span>|</span>
+              <span>A/D Ratio {(marketSummary.advance / (marketSummary.decline + 1)).toFixed(2)}</span>
             </span>
             <span className="text-[10px] font-semibold text-red-400">
               Decline {marketSummary.decline} ({decPct.toFixed(0)}%)

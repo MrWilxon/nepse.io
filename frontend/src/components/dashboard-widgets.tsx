@@ -508,7 +508,7 @@ export function EventsWidget() {
                     d.type === "bonus" ? "bg-blue-500/10 text-blue-400" :
                     "bg-purple-500/10 text-purple-400"
                   }`}>
-                    {d.type.toUpperCase()}
+                    {(d.type || "other").toUpperCase()}
                   </div>
                   <div>
                     <div className="text-xs font-bold text-primary-theme">{d.symbol}</div>

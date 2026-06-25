@@ -534,7 +534,7 @@ async function scrapeLatestPrices() {
       const close = safeNum(r.closePrice) || safeNum(r.lastUpdatedPrice) || safeNum(r.ltp) || open;
       const prevClose = safeNum(r.previousDayClosePrice);
       const pctChange = prevClose !== 0 ? Math.round(((close - prevClose) / prevClose) * 10000) / 100 : 0;
-      const volume = safeNum(r.totalTradeQuantity) || safeNum(r.totalVolume);
+      const volume = safeNum(r.totalTradedQuantity) || safeNum(r.totalTradeQuantity) || safeNum(r.totalVolume);
       const turnover = safeNum(r.totalTradedValue) || safeNum(r.totalAmount);
       return {
         symbol: r.symbol,

@@ -7,6 +7,7 @@ import { ChevronRight, Home } from "lucide-react";
 const ROUTE_NAMES: Record<string, string> = {
   "": "Home",
   sectors: "Sectors",
+  company: "Companies",
   compare: "Compare",
   indicators: "Indicators",
   fibonacci: "Fibonacci",

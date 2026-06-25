@@ -6,8 +6,7 @@ import {
 } from "recharts";
 import { RefreshCw, Shield, AlertTriangle, Activity, Users, Zap } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+import { API_BASE } from "@/lib/api";
 
 interface RateLimitStatus {
   windowMs: number;

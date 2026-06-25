@@ -3,9 +3,7 @@
 import { useEffect, useState, useMemo } from "react";
 import { Download, Check, ChevronDown, ChevronUp, FileSpreadsheet, FileText, Search } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
-import type { CompanySummary } from "@/lib/api";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+import { API_BASE, type CompanySummary } from "@/lib/api";
 
 export default function ExportPage() {
   const { t } = useI18n();

@@ -9,10 +9,8 @@ import {
   BarChart3,
   Loader2,
 } from "lucide-react";
-import type { CompanySummary } from "@/lib/api";
+import { API_BASE, type CompanySummary } from "@/lib/api";
 import { exportCompanyReport, exportCSV, exportPDF } from "@/lib/export";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
 export default function ReportsPage() {
   const [companies, setCompanies] = useState<CompanySummary[]>([]);

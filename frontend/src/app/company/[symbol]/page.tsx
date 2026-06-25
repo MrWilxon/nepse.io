@@ -28,12 +28,10 @@ import {
   Star,
   Wifi,
 } from "lucide-react";
-import type { IndicatorData, CompanyStats, ChartPattern } from "@/lib/api";
+import { API_BASE, type IndicatorData, type CompanyStats, type ChartPattern } from "@/lib/api";
 import { useWatchlist } from "@/lib/watchlist";
 import { exportCSV } from "@/lib/export";
 import { CandlestickChart } from "@/components/candlestick-chart";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
 const TIME_RANGES = [
   { label: "1M", years: 0.08 },

@@ -13,8 +13,7 @@ import {
   ArrowDownRight,
 } from "lucide-react";
 import { exportTaxReport, exportCSV } from "@/lib/export";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+import { API_BASE } from "@/lib/api";
 
 interface TaxTransaction {
   symbol: string;

@@ -3,9 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { MessageSquare, ThumbsUp, ThumbsDown, Send, Flame, Clock, User } from "lucide-react";
-import type { CommunityPost, CommunityResponse } from "@/lib/api";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+import { API_BASE, type CommunityPost, type CommunityResponse } from "@/lib/api";
 
 export default function CommunityPage() {
   const params = useParams();

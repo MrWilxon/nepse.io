@@ -3,8 +3,7 @@
 import { useEffect, useState } from "react";
 import { Search } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+import { API_BASE } from "@/lib/api";
 
 export default function TimeframesPage() {
   const [symbol, setSymbol] = useState("NMB");

@@ -8,9 +8,7 @@ import {
   CheckCircle,
   ExternalLink,
 } from "lucide-react";
-import type { IPORecord } from "@/lib/api";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+import { API_BASE, type IPORecord } from "@/lib/api";
 
 export default function IPOPage() {
   const [ipos, setIpos] = useState<IPORecord[]>([]);

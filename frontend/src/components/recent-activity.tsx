@@ -2,8 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Activity, ArrowUpRight, ArrowDownRight, Clock } from "lucide-react";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+import { API_BASE } from "@/lib/api";
 
 interface ActivityItem {
   id: string;

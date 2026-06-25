@@ -7,9 +7,7 @@ import {
   PieChart, Layers, X,
 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Cell } from "recharts";
-import type { BrokersResponse, BrokerData, BrokerDetailResponse, BrokerHoldingsResponse, TopStocksByBrokerResponse, BrokerHoldingStock, BrokerTopTradesResponse, BrokerTopTradeBroker } from "@/lib/api";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+import { API_BASE, type BrokersResponse, type BrokerData, type BrokerDetailResponse, type BrokerHoldingsResponse, type TopStocksByBrokerResponse, type BrokerHoldingStock, type BrokerTopTradesResponse, type BrokerTopTradeBroker } from "@/lib/api";
 
 const PAGE_SIZE = 25;
 

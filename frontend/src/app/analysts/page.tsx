@@ -2,9 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { TrendingUp, TrendingDown, Minus, Target, Users, BarChart3 } from "lucide-react";
-import type { AnalystRatingsListResponse, AnalystRatingsResponse } from "@/lib/api";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+import { API_BASE, type AnalystRatingsListResponse, type AnalystRatingsResponse } from "@/lib/api";
 
 export default function AnalystsPage() {
   const [data, setData] = useState<AnalystRatingsListResponse | null>(null);

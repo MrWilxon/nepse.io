@@ -8,9 +8,7 @@ import {
 import {
   TrendingUp, TrendingDown, Activity, Building2, BarChart3, ArrowUpRight,
 } from "lucide-react";
-import type { SectorData, HeatmapData } from "@/lib/api";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+import { API_BASE, type SectorData, type HeatmapData } from "@/lib/api";
 
 function getHeatColor(change: number): string {
   const abs = Math.min(Math.abs(change), 5);

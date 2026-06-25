@@ -3,8 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, PieChart, Pie } from "recharts";
 import { Building2, TrendingUp, TrendingDown, ChevronDown, ChevronRight, Search, ArrowUpRight, ArrowDownRight, Minus, Package } from "lucide-react";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+import { API_BASE } from "@/lib/api";
 
 interface StockData {
   symbol: string;

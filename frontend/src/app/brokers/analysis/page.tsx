@@ -10,12 +10,7 @@ import {
   XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend,
   RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
 } from "recharts";
-import type {
-  BrokerTrendsResponse, BrokerRankingsResponse, BrokerCompareResponse,
-  BrokerParticipationResponse, BrokerRanking, BrokerComparisonItem,
-} from "@/lib/api";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+import { API_BASE, type BrokerTrendsResponse, type BrokerRankingsResponse, type BrokerCompareResponse, type BrokerParticipationResponse, type BrokerRanking, type BrokerComparisonItem } from "@/lib/api";
 
 const COLORS = ["#D4A017", "#22c55e", "#ef4444", "#3b82f6", "#a855f7", "#f97316", "#06b6d4", "#ec4899"];
 

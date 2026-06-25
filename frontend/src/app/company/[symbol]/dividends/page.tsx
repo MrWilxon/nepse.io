@@ -9,9 +9,7 @@ import {
   Gift,
   TrendingUp,
 } from "lucide-react";
-import type { DividendRecord, CompanyStats } from "@/lib/api";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+import { API_BASE, type DividendRecord, type CompanyStats } from "@/lib/api";
 
 export default function DividendsPage() {
   const params = useParams();

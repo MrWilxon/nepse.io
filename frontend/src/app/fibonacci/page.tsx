@@ -2,8 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Search, TrendingUp, TrendingDown } from "lucide-react";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+import { API_BASE } from "@/lib/api";
 
 export default function FibonacciPage() {
   const [symbol, setSymbol] = useState("NMB");

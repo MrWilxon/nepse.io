@@ -6,9 +6,7 @@ import {
   ResponsiveContainer, Legend, ReferenceLine,
 } from "recharts";
 import { Plus, X, Search, TrendingUp, TrendingDown, BarChart3, Clock } from "lucide-react";
-import type { CompanySummary } from "@/lib/api";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+import { API_BASE, type CompanySummary } from "@/lib/api";
 
 const CHART_COLORS = ["#D4A017", "#22c55e", "#3b82f6", "#ef4444", "#a855f7", "#ec4899", "#06b6d4", "#f97316"];
 

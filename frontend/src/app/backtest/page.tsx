@@ -8,10 +8,8 @@ import {
 import {
   Play, TrendingUp, TrendingDown, Target, Settings, Zap, BarChart3,
 } from "lucide-react";
-import { runBacktest, type BacktestResult, type CompanySummary } from "@/lib/api";
+import { API_BASE, runBacktest, type BacktestResult, type CompanySummary } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
 const STRATEGIES = [
   { value: "sma_crossover", label: "SMA Crossover", desc: "Buy when fast SMA > slow SMA, sell when cross below" },

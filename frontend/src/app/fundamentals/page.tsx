@@ -2,8 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react";
 import { TrendingUp, TrendingDown, Search, ArrowUpDown, ChevronDown, ChevronUp, Building2, Filter } from "lucide-react";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+import { API_BASE } from "@/lib/api";
 
 interface Fundamental {
   symbol: string;

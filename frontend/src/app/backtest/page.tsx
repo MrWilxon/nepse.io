@@ -93,7 +93,19 @@ export default function BacktestPage() {
     if (!symbol) return;
     setLoading(true);
     try {
-      const data = await runBacktest(symbol, strategy, capital, fromDate);
+      const params: Record<string, number> = {};
+      if (strategy === "sma_crossover") {
+        params.smaFast = smaFast;
+        params.smaSlow = smaSlow;
+      } else if (strategy === "rsi") {
+        params.rsiBuy = rsiBuy;
+        params.rsiSell = rsiSell;
+      } else if (strategy === "macd") {
+        params.macdFast = macdFast;
+        params.macdSlow = macdSlow;
+        params.macdSignal = macdSignal;
+      }
+      const data = await runBacktest(symbol, strategy, capital, fromDate, params);
       setResult(data);
     } catch { setResult(null); }
     setLoading(false);

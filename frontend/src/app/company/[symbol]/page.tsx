@@ -513,7 +513,7 @@ export default function CompanyPage() {
                           {r.low?.toLocaleString() ?? "-"}
                         </td>
                         <td className="px-3 py-2 text-right font-mono text-xs font-medium">
-                          {r.close.toLocaleString()}
+                          {r.close?.toLocaleString() ?? "-"}
                         </td>
                         <td className="px-3 py-2 text-right font-mono text-xs">
                           -

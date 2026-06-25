@@ -21,7 +21,7 @@ export default function VolumeProfilePage() {
 
   useEffect(() => { fetchData(); }, []);
 
-  const maxVol = data ? Math.max(...data.profile.map((p: any) => p.totalVolume)) : 1;
+  const maxVol = data?.profile?.length ? Math.max(...data.profile.map((p: any) => p.totalVolume)) : 1;
 
   return (
     <div className="space-y-6">

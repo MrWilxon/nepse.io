@@ -183,7 +183,8 @@ startLiveFeed();
 function broadcastScreenerUpdate() {
   try {
     const allData = getAllCompanyData();
-    const sample = allData.slice(0, 10).map(({ symbol, records }) => {
+    const startIdx = allData.length > 10 ? Math.floor(Math.random() * (allData.length - 10)) : 0;
+    const sample = allData.slice(startIdx, startIdx + 10).map(({ symbol, records }) => {
       const data = parseRecords(records);
       if (data.length < 5) return null;
       const closes = data.map((r) => r.close);
@@ -411,8 +412,8 @@ async function preloadAllCompanyData() {
   const { data: companies, error } = await supabase.from("companies").select("symbol");
   if (error) { console.error("Failed to load companies:", error.message); return; }
 
+  const newCache = new Map();
   for (const { symbol } of companies) {
-    // Fetch in chunks to avoid Supabase payload limits
     let allRows = [];
     let offset = 0;
     const chunkSize = 1000;
@@ -430,7 +431,7 @@ async function preloadAllCompanyData() {
     }
 
     if (allRows.length > 0) {
-      companyDataCache.set(symbol, allRows.map(r => ({
+      newCache.set(symbol, allRows.map(r => ({
         published_date: r.published_date,
         open: String(r.open ?? ""),
         high: String(r.high ?? ""),
@@ -443,6 +444,8 @@ async function preloadAllCompanyData() {
       })));
     }
   }
+  for (const [k, v] of newCache) companyDataCache.set(k, v);
+  for (const k of companyDataCache.keys()) { if (!newCache.has(k)) companyDataCache.delete(k); }
   dataLoaded = true;
   console.log(`Loaded ${companyDataCache.size} companies from Supabase`);
 }
@@ -952,278 +955,6 @@ setupMarketRoutes(app, {
   companyDataCache, supabase, invalidateCache,
 });
 
-app.get("/api/companies", (req, res) => {
-  try {
-    const companies = [];
-    for (const [symbol, records] of companyDataCache) {
-      if (!records || records.length === 0) continue;
-      const latest = records[records.length - 1];
-      companies.push({
-        symbol,
-        category: CATEGORY_MAP[symbol] || "Other",
-        records: records.length,
-        latestClose: parseFloat(latest.close) || null,
-        latestDate: latest.published_date,
-      });
-    }
-    res.json(companies);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.get("/api/companies/:symbol", (req, res) => {
-  const symbol = req.params.symbol.toUpperCase();
-  const { from, to, limit } = req.query;
-  const records = readCompanyCSV(symbol);
-  if (!records) return res.status(404).json({ error: "Company not found" });
-  let filtered = parseRecords(records);
-  if (from) filtered = filtered.filter((r) => r.date >= from);
-  if (to) filtered = filtered.filter((r) => r.date <= to);
-  if (limit) filtered = filtered.slice(-parseInt(limit));
-  res.json({ symbol, category: CATEGORY_MAP[symbol] || "Other", data: filtered });
-});
-
-app.get("/api/companies/:symbol/stats", (req, res) => {
-  const symbol = req.params.symbol.toUpperCase();
-  const records = readCompanyCSV(symbol);
-  if (!records) return res.status(404).json({ error: "Company not found" });
-  const closes = records.map((r) => parseFloat(r.close)).filter((v) => !isNaN(v));
-  const volumes = records.map((r) => parseInt(r.traded_quantity)).filter((v) => !isNaN(v));
-  const latest = records[records.length - 1];
-  res.json({
-    symbol,
-    category: CATEGORY_MAP[symbol] || "Other",
-    totalRecords: records.length,
-    firstDate: records[0].published_date,
-    lastDate: latest.published_date,
-    latestClose: parseFloat(latest.close) || 0,
-    allTimeHigh: Math.max(...closes),
-    allTimeLow: Math.min(...closes),
-    avgVolume: Math.round(volumes.reduce((a, b) => a + b, 0) / volumes.length),
-  });
-});
-app.get("/api/companies/:symbol/indicators", (req, res) => {
-  const symbol = req.params.symbol.toUpperCase();
-  const { from, to, limit } = req.query;
-  const cacheKey = `${symbol}_${from || ""}_${to || ""}_${limit || ""}`;
-  const cached = getCachedIndicators(cacheKey);
-  if (cached) return res.json(cached);
-  const records = readCompanyCSV(symbol);
-  if (!records) return res.status(404).json({ error: "Company not found" });
-  let data = parseRecords(records);
-  if (from) data = data.filter((r) => r.date >= from);
-  if (to) data = data.filter((r) => r.date <= to);
-  if (limit) data = data.slice(-parseInt(limit));
-  const closes = data.map((r) => r.close);
-  const sma20 = SMA(closes, 20);
-  const sma50 = SMA(closes, 50);
-  const ema12 = EMA(closes, 12);
-  const ema26 = EMA(closes, 26);
-  const rsi14 = RSI(closes, 14);
-  const macd = MACD(closes, 12, 26, 9);
-  const bb = BollingerBands(closes, 20, 2);
-  const indicators = data.map((d, i) => ({
-    date: d.date,
-    close: d.close,
-    sma20: sma20[i] !== null ? Math.round(sma20[i] * 100) / 100 : null,
-    sma50: sma50[i] !== null ? Math.round(sma50[i] * 100) / 100 : null,
-    ema12: ema12[i] !== null ? Math.round(ema12[i] * 100) / 100 : null,
-    ema26: ema26[i] !== null ? Math.round(ema26[i] * 100) / 100 : null,
-    rsi: rsi14[i] !== null ? Math.round(rsi14[i] * 100) / 100 : null,
-    macd: macd.macdLine[i] !== null ? Math.round(macd.macdLine[i] * 100) / 100 : null,
-    macdSignal: macd.signalLine[i] !== null ? Math.round(macd.signalLine[i] * 100) / 100 : null,
-    macdHist: macd.histogram[i] !== null ? Math.round(macd.histogram[i] * 100) / 100 : null,
-    bbUpper: bb.upper[i] !== null ? Math.round(bb.upper[i] * 100) / 100 : null,
-    bbMiddle: bb.middle[i] !== null ? Math.round(bb.middle[i] * 100) / 100 : null,
-    bbLower: bb.lower[i] !== null ? Math.round(bb.lower[i] * 100) / 100 : null,
-  }));
-  const result = { symbol, category: CATEGORY_MAP[symbol] || "Other", data: indicators };
-  setCachedIndicators(cacheKey, result);
-  res.json(result);
-});
-
-app.get("/api/top-movers", (req, res) => {
-  try {
-    const all = getAllCompanyData();
-    const latestMap = {};
-
-    // Find the latest date first
-    let latestDate = null;
-    for (const { records } of all) {
-      if (!records || records.length === 0) continue;
-      const d = records[records.length - 1].published_date;
-      if (!latestDate || d > latestDate) latestDate = d;
-    }
-
-    for (const { symbol, records } of all) {
-      if (!records || records.length === 0) continue;
-      const latest = records[records.length - 1];
-      if (latest.published_date !== latestDate) continue;
-
-      const close = parseFloat(latest.close) || 0;
-      const volume = parseInt(latest.traded_quantity) || 0;
-      const category = CATEGORY_MAP[symbol] || "Other";
-
-      // Use stored per_change from DB
-      let changePct = parseFloat(latest.per_change);
-      if (!Number.isFinite(changePct)) changePct = 0;
-      const change = close * changePct / 100;
-
-      if (!latestMap[latestDate]) latestMap[latestDate] = [];
-      latestMap[latestDate].push({ symbol, category, close, change: Math.round(change * 100) / 100, changePct: Math.round(changePct * 100) / 100, volume });
-    }
-
-    const dayData = latestMap[latestDate] || [];
-    const sorted = [...dayData].sort((a, b) => b.changePct - a.changePct);
-    const gainers = sorted.filter((d) => d.changePct > 0).slice(0, 10);
-    const losers = sorted.filter((d) => d.changePct < 0).reverse().slice(0, 10);
-    const mostActive = [...dayData].sort((a, b) => b.volume - a.volume).slice(0, 10);
-    res.json({ gainers, losers, mostActive });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-app.get("/api/sectors", (req, res) => {
-  try {
-    const all = getAllCompanyData();
-    const sectorMap = {};
-    for (const { symbol, records } of all) {
-      if (!records || records.length === 0) continue;
-      const category = CATEGORY_MAP[symbol] || "Other";
-      const latest = records[records.length - 1];
-      const close = parseFloat(latest.close) || 0;
-      const change = parseFloat(latest.per_change) || 0;
-      const volume = parseInt(latest.traded_quantity) || 0;
-      const turnover = parseFloat(latest.traded_amount) || 0;
-      if (!sectorMap[category]) sectorMap[category] = { companies: [], totalChange: 0, totalVolume: 0, totalTurnover: 0, count: 0 };
-      sectorMap[category].companies.push({ symbol, latestClose: close, change });
-      sectorMap[category].totalChange += change;
-      sectorMap[category].totalVolume += volume;
-      sectorMap[category].totalTurnover += turnover;
-      sectorMap[category].count++;
-    }
-    const sectors = Object.entries(sectorMap).map(([sector, d]) => ({
-      sector,
-      avgChange: Math.round((d.totalChange / d.count) * 100) / 100,
-      totalVolume: d.totalVolume,
-      totalTurnover: d.totalTurnover,
-      companyCount: d.count,
-      companies: d.companies,
-    }));
-    sectors.sort((a, b) => b.avgChange - a.avgChange);
-    res.json(sectors);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.get("/api/sectors/heatmap", (req, res) => {
-  try {
-    const all = getAllCompanyData();
-    let totalMarketCap = 0;
-    const sectorData = {};
-    for (const { symbol, records } of all) {
-      if (!records || records.length === 0) continue;
-      const category = CATEGORY_MAP[symbol] || "Other";
-      const latest = records[records.length - 1];
-      const close = parseFloat(latest.close) || 0;
-      const volume = parseInt(latest.traded_quantity) || 0;
-      const marketProxy = close * volume;
-      totalMarketCap += marketProxy;
-      if (!sectorData[category]) sectorData[category] = { change: 0, count: 0, marketShare: 0 };
-      sectorData[category].change += parseFloat(latest.per_change) || 0;
-      sectorData[category].count++;
-      sectorData[category].marketShare += marketProxy;
-    }
-    const heatmap = Object.entries(sectorData).map(([sector, d]) => ({
-      sector,
-      change: Math.round((d.change / d.count) * 100) / 100,
-      marketShare: totalMarketCap > 0 ? Math.round((d.marketShare / totalMarketCap) * 10000) / 100 : 0,
-    }));
-    heatmap.sort((a, b) => b.marketShare - a.marketShare);
-    res.json(heatmap);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.get("/api/market-summary", (req, res) => {
-  try {
-    const all = getAllCompanyData();
-
-    // Find the latest date across all companies
-    let latestDate = null;
-    for (const { records } of all) {
-      if (!records || records.length === 0) continue;
-      const d = records[records.length - 1].published_date;
-      if (!latestDate || d > latestDate) latestDate = d;
-    }
-    if (!latestDate) {
-      res.json({ totalCompanies: 0, totalVolume: 0, totalTurnover: 0, advance: 0, decline: 0, unchanged: 0, upperCircuit: 0, lowerCircuit: 0, latestDate: null });
-      return;
-    }
-
-    let totalVolume = 0;
-    let totalTurnover = 0;
-    let advance = 0;
-    let decline = 0;
-    let unchanged = 0;
-    let upperCircuit = 0;
-    let lowerCircuit = 0;
-    let counted = 0;
-
-    for (const { symbol, records } of all) {
-      if (!records || records.length === 0) continue;
-
-      // Only use the latest record for this symbol if it matches latestDate
-      const latest = records[records.length - 1];
-      if (latest.published_date !== latestDate) continue;
-
-      const close = parseFloat(latest.close) || 0;
-      const volume = parseInt(latest.traded_quantity) || 0;
-      const turnover = parseFloat(latest.traded_amount) || 0;
-
-      // Use the stored per_change from DB (computed correctly by scraper from previousDayClosePrice)
-      let pctChange = parseFloat(latest.per_change);
-      if (!Number.isFinite(pctChange)) {
-        // Fallback: compare with previous record if available
-        const prev = records.length > 1 ? records[records.length - 2] : null;
-        if (prev && prev.published_date < latestDate) {
-          const prevClose = parseFloat(prev.close) || close;
-          pctChange = prevClose !== 0 ? ((close - prevClose) / prevClose) * 100 : 0;
-        } else {
-          pctChange = 0;
-        }
-      }
-
-      totalVolume += volume;
-      totalTurnover += turnover;
-      counted++;
-
-      if (pctChange > 0) advance++;
-      else if (pctChange < 0) decline++;
-      else unchanged++;
-
-      if (pctChange >= 9.9) upperCircuit++;
-      else if (pctChange <= -9.9) lowerCircuit++;
-    }
-
-    res.json({ totalCompanies: counted, totalVolume, totalTurnover, advance, decline, unchanged, upperCircuit, lowerCircuit, latestDate });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.get("/api/nepse-index", async (req, res) => {
-  try {
-    const data = await dataProvider.getNepseIndex();
-    res.json(data);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
 app.get("/api/dividends/:symbol", async (req, res) => {
   const symbol = req.params.symbol.toUpperCase();
   if (!CATEGORY_MAP[symbol]) return res.status(404).json({ error: "Company not found" });
@@ -1236,18 +967,10 @@ app.get("/api/dividends/:symbol", async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-app.get("/api/ipo", async (req, res) => {
-  try {
-    const data = await dataProvider.getIPO();
-    res.json(Array.isArray(data) ? data : []);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
 
 app.post("/api/backtest", (req, res) => {
   try {
-    const { symbol, strategy, startCapital = 100000, fromDate } = req.body;
+    const { symbol, strategy, startCapital = 100000, fromDate, smaFast: smaFastParam, smaSlow: smaSlowParam, rsiBuy: rsiBuyParam, rsiSell: rsiSellParam, macdFast: macdFastParam, macdSlow: macdSlowParam, macdSignal: macdSignalParam } = req.body;
     if (!symbol || !strategy) return res.status(400).json({ error: "symbol and strategy are required" });
     const records = readCompanyCSV(symbol.toUpperCase());
     if (!records) return res.status(404).json({ error: "Company not found" });
@@ -1257,12 +980,17 @@ app.post("/api/backtest", (req, res) => {
     const closes = data.map((d) => d.close);
     let smaFast, smaSlow, rsiValues, macdData;
     if (strategy === "sma_crossover") {
-      smaFast = SMA(closes, 20);
-      smaSlow = SMA(closes, 50);
+      const fast = Math.max(2, Math.round(smaFastParam) || 20);
+      const slow = Math.max(fast + 1, Math.round(smaSlowParam) || 50);
+      smaFast = SMA(closes, fast);
+      smaSlow = SMA(closes, slow);
     } else if (strategy === "rsi") {
       rsiValues = RSI(closes, 14);
     } else if (strategy === "macd") {
-      macdData = MACD(closes, 12, 26, 9);
+      const fast = Math.max(2, Math.round(macdFastParam) || 12);
+      const slow = Math.max(fast + 1, Math.round(macdSlowParam) || 26);
+      const signal = Math.max(2, Math.round(macdSignalParam) || 9);
+      macdData = MACD(closes, fast, slow, signal);
     } else {
       return res.status(400).json({ error: "Invalid strategy. Use sma_crossover, rsi, or macd" });
     }
@@ -1288,9 +1016,11 @@ app.post("/api/backtest", (req, res) => {
           else if (prevCross >= 0 && currCross < 0) signal = "sell";
         }
       } else if (strategy === "rsi") {
+        const buyThreshold = Math.max(10, Math.min(50, Number(rsiBuyParam) || 30));
+        const sellThreshold = Math.max(50, Math.min(90, Number(rsiSellParam) || 70));
         if (rsiValues[i] !== null) {
-          if (rsiValues[i] < 30 && !holding) signal = "buy";
-          else if (rsiValues[i] > 70 && holding) signal = "sell";
+          if (rsiValues[i] < buyThreshold && !holding) signal = "buy";
+          else if (rsiValues[i] > sellThreshold && holding) signal = "sell";
         }
       } else if (strategy === "macd") {
         if (macdData.macdLine[i] !== null && macdData.signalLine[i] !== null && macdData.macdLine[i - 1] !== null && macdData.signalLine[i - 1] !== null) {
@@ -1461,16 +1191,12 @@ app.get("/api/predictions/:symbol", (req, res) => {
     const smaPred = sma20[sma20.length - 1];
     const emaPred = ema12[ema12.length - 1];
     const recentReturns = [];
-    for (let i = closes.length - 11; i < closes.length; i++) {
+    for (let i = closes.length - 21; i < closes.length; i++) {
       recentReturns.push((closes[i] - closes[i - 1]) / closes[i - 1]);
     }
     const avgReturn = recentReturns.reduce((a, b) => a + b, 0) / recentReturns.length;
     const momentumPred = currentPrice * (1 + avgReturn);
-    const returns10 = [];
-    for (let i = closes.length - 21; i < closes.length; i++) {
-      returns10.push((closes[i] - closes[i - 1]) / closes[i - 1]);
-    }
-    const volatility = Math.sqrt(returns10.reduce((a, r) => a + Math.pow(r - avgReturn, 2), 0) / returns10.length);
+    const volatility = Math.sqrt(recentReturns.reduce((a, r) => a + Math.pow(r - avgReturn, 2), 0) / recentReturns.length);
     const smaWeight = 0.35;
     const emaWeight = 0.3;
     const momentumWeight = 0.35;
@@ -2129,7 +1855,7 @@ async function calculateFundamentals(symbol) {
     shortCategory,
     group,
     latestClose: close,
-    change: Math.round(parseFloat(latest.per_change) || 0) / 100,
+    change: Math.round((parseFloat(latest.per_change) || 0) * 100) / 100,
     changePct: parseFloat(latest.per_change) || 0,
     latestDate: latest.published_date,
     fiftyTwoWeekHigh,
@@ -2476,12 +2202,12 @@ app.get("/api/fibonacci/:symbol", (req, res) => {
       currentPrice: data[data.length - 1].close,
       analysis: {
         pricePosition: ((data[data.length - 1].close - low) / range * 100).toFixed(1) + "%",
-        nearestSupport: supportLevels.reduce((prev, curr) =>
+        nearestSupport: supportLevels.length > 0 ? supportLevels.reduce((prev, curr) =>
           Math.abs(curr.price - data[data.length - 1].close) < Math.abs(prev.price - data[data.length - 1].close) ? curr : prev
-        ),
-        nearestResistance: resistanceLevels.reduce((prev, curr) =>
+        ) : null,
+        nearestResistance: resistanceLevels.length > 0 ? resistanceLevels.reduce((prev, curr) =>
           Math.abs(curr.price - data[data.length - 1].close) < Math.abs(prev.price - data[data.length - 1].close) ? curr : prev
-        ),
+        ) : null,
       },
     });
   } catch (err) {
@@ -2974,8 +2700,8 @@ function scheduleAutoScrape() {
     }
   }
 
-  const msUntilNext = (961 - timeMinutes) * 60 * 1000;
-  const checkInterval = Math.min(msUntilNext, 5 * 60 * 1000);
+  const msUntilNext = Math.max(0, (961 - timeMinutes) * 60 * 1000);
+  const checkInterval = Math.min(msUntilNext || 5 * 60 * 1000, 5 * 60 * 1000);
   setTimeout(scheduleAutoScrape, checkInterval);
 }
 scheduleAutoScrape();
@@ -3123,8 +2849,8 @@ app.get("/api/journal", async (req, res) => {
   let query = supabase.from("journal_entries").select("*");
   if (symbol) query = query.eq("symbol", symbol.toUpperCase());
   if (strategy) query = query.eq("strategy", strategy);
-  if (from) query = query.gte("exit_date", from);
-  if (to) query = query.lte("exit_date", to);
+  if (from) query = query.gte("entry_date", from);
+  if (to) query = query.lte("entry_date", to);
   query = query.order("created_at", { ascending: false });
   const { data: filtered } = await query;
 
@@ -3453,7 +3179,7 @@ app.get("/api/social-sentiment", (req, res) => {
     score: generateSocialSentiment(s).score,
     totalMentions: generateSocialSentiment(s).platforms.reduce((sum, p) => sum + p.mentions, 0),
   }));
-  const sorted = [...results].sort((a, b) => b.score - a.score);
+  const sorted = [...results].sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
   res.json({ companies: sorted, topBullish: sorted.slice(0, 5), topBearish: sorted.slice(-5).reverse() });
 });
 
@@ -3701,8 +3427,9 @@ app.use((req, res, next) => {
   const endpoint = req.path;
   const method = req.method;
 
-  if (!apiStats.ipCounts[ip]) apiStats.ipCounts[ip] = { count: 0, blocked: false };
+  if (!apiStats.ipCounts[ip]) apiStats.ipCounts[ip] = { count: 0, blocked: false, lastSeen: Date.now() };
   apiStats.ipCounts[ip].count++;
+  apiStats.ipCounts[ip].lastSeen = Date.now();
   if (apiStats.ipCounts[ip].count > RATE_LIMIT_MAX) apiStats.ipCounts[ip].blocked = true;
 
   const key = `${method} ${endpoint}`;

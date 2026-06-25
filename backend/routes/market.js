@@ -108,23 +108,35 @@ module.exports = function setupMarketRoutes(app, deps) {
   app.get("/api/top-movers", (req, res) => {
     try {
       const all = getAllCompanyData();
-      const latestMap = {};
+
+      let latestDate = null;
+      for (const { records } of all) {
+        if (!records || records.length === 0) continue;
+        const d = records[records.length - 1].published_date;
+        if (!latestDate || d > latestDate) latestDate = d;
+      }
+      if (!latestDate) {
+        res.json({ gainers: [], losers: [], mostActive: [] });
+        return;
+      }
+
+      const dayData = [];
       for (const { symbol, records } of all) {
         if (!records || records.length === 0) continue;
         const latest = records[records.length - 1];
-        const prev = records.length > 1 ? records[records.length - 2] : null;
+        if (latest.published_date !== latestDate) continue;
+
         const close = parseFloat(latest.close) || 0;
-        const prevClose = prev ? parseFloat(prev.close) || close : close;
-        const change = close - prevClose;
-        const changePct = prevClose !== 0 ? (change / prevClose) * 100 : 0;
         const volume = parseInt(latest.traded_quantity) || 0;
         const category = CATEGORY_MAP[symbol] || "Other";
-        if (!latestMap[latest.published_date]) latestMap[latest.published_date] = [];
-        latestMap[latest.published_date].push({ symbol, category, close, change: Math.round(change * 100) / 100, changePct: Math.round(changePct * 100) / 100, volume });
+
+        let changePct = parseFloat(latest.per_change);
+        if (!Number.isFinite(changePct)) changePct = 0;
+        const change = close * changePct / 100;
+
+        dayData.push({ symbol, category, close, change: Math.round(change * 100) / 100, changePct: Math.round(changePct * 100) / 100, volume });
       }
-      const dates = Object.keys(latestMap).sort();
-      const latestDate = dates[dates.length - 1];
-      const dayData = latestMap[latestDate] || [];
+
       const sorted = [...dayData].sort((a, b) => b.changePct - a.changePct);
       const gainers = sorted.filter((d) => d.changePct > 0).slice(0, 10);
       const losers = sorted.filter((d) => d.changePct < 0).reverse().slice(0, 10);
@@ -203,28 +215,60 @@ module.exports = function setupMarketRoutes(app, deps) {
   app.get("/api/market-summary", (req, res) => {
     try {
       const all = getAllCompanyData();
+
+      let latestDate = null;
+      for (const { records } of all) {
+        if (!records || records.length === 0) continue;
+        const d = records[records.length - 1].published_date;
+        if (!latestDate || d > latestDate) latestDate = d;
+      }
+      if (!latestDate) {
+        res.json({ totalCompanies: 0, totalVolume: 0, totalTurnover: 0, advance: 0, decline: 0, unchanged: 0, upperCircuit: 0, lowerCircuit: 0, latestDate: null });
+        return;
+      }
+
       let totalVolume = 0;
       let totalTurnover = 0;
       let advance = 0;
       let decline = 0;
       let unchanged = 0;
-      const dates = [];
+      let upperCircuit = 0;
+      let lowerCircuit = 0;
+      let counted = 0;
+
       for (const { symbol, records } of all) {
         if (!records || records.length === 0) continue;
         const latest = records[records.length - 1];
+        if (latest.published_date !== latestDate) continue;
+
         const close = parseFloat(latest.close) || 0;
-        const prev = records.length > 1 ? parseFloat(records[records.length - 2].close) || close : close;
         const volume = parseInt(latest.traded_quantity) || 0;
         const turnover = parseFloat(latest.traded_amount) || 0;
+
+        let pctChange = parseFloat(latest.per_change);
+        if (!Number.isFinite(pctChange)) {
+          const prev = records.length > 1 ? records[records.length - 2] : null;
+          if (prev && prev.published_date < latestDate) {
+            const prevClose = parseFloat(prev.close) || close;
+            pctChange = prevClose !== 0 ? ((close - prevClose) / prevClose) * 100 : 0;
+          } else {
+            pctChange = 0;
+          }
+        }
+
         totalVolume += volume;
         totalTurnover += turnover;
-        dates.push(latest.published_date);
-        if (close > prev) advance++;
-        else if (close < prev) decline++;
+        counted++;
+
+        if (pctChange > 0) advance++;
+        else if (pctChange < 0) decline++;
         else unchanged++;
+
+        if (pctChange >= 9.9) upperCircuit++;
+        else if (pctChange <= -9.9) lowerCircuit++;
       }
-      const latestDate = dates.sort().pop() || null;
-      res.json({ totalCompanies: all.length, totalVolume, totalTurnover, advance, decline, unchanged, latestDate });
+
+      res.json({ totalCompanies: counted, totalVolume, totalTurnover, advance, decline, unchanged, upperCircuit, lowerCircuit, latestDate });
     } catch (err) {
       res.status(500).json({ error: err.message });
     }
@@ -239,7 +283,12 @@ module.exports = function setupMarketRoutes(app, deps) {
     }
   });
 
-  app.get("/api/ipo", (req, res) => {
-    res.json([]);
+  app.get("/api/ipo", async (req, res) => {
+    try {
+      const data = await dataProvider.getIPO();
+      res.json(Array.isArray(data) ? data : []);
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
   });
 };

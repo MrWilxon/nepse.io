@@ -245,11 +245,17 @@ export interface SentimentData {
   headlines: { title: string; sentiment: string; source: string; date: string }[];
 }
 
-export async function runBacktest(symbol: string, strategy: string, startCapital: number, fromDate?: string): Promise<BacktestResult> {
+export async function runBacktest(
+  symbol: string,
+  strategy: string,
+  startCapital: number,
+  fromDate?: string,
+  params?: Record<string, number>,
+): Promise<BacktestResult> {
   const res = await fetch(`${API_BASE}/api/backtest`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ symbol, strategy, startCapital, fromDate }),
+    body: JSON.stringify({ symbol, strategy, startCapital, fromDate, ...params }),
   });
   return res.json();
 }

@@ -531,11 +531,11 @@ async function scrapeLatestPrices() {
       const open = safeNum(r.openPrice);
       const high = safeNum(r.highPrice);
       const low = safeNum(r.lowPrice);
-      const close = safeNum(r.closePrice);
+      const close = safeNum(r.closePrice) || safeNum(r.lastUpdatedPrice) || safeNum(r.ltp) || open;
       const prevClose = safeNum(r.previousDayClosePrice);
       const pctChange = prevClose !== 0 ? Math.round(((close - prevClose) / prevClose) * 10000) / 100 : 0;
-      const volume = safeNum(r.totalTradeQuantity);
-      const turnover = safeNum(r.totalTradedValue);
+      const volume = safeNum(r.totalTradeQuantity) || safeNum(r.totalVolume);
+      const turnover = safeNum(r.totalTradedValue) || safeNum(r.totalAmount);
       return {
         symbol: r.symbol,
         published_date: r.businessDate || new Date().toISOString().slice(0, 10),
@@ -543,12 +543,13 @@ async function scrapeLatestPrices() {
         high: String(high),
         low: String(low),
         close: String(close),
-        per_change: pctChange,
+        per_change: close > 0 ? pctChange : 0,
         traded_quantity: String(volume),
         traded_amount: String(turnover),
         status: String(close > open ? 1 : close < open ? -1 : 0),
       };
-    });
+    })
+    .filter((r) => parseFloat(r.close) > 0);
 
   if (rows.length === 0) {
     log("No valid rows after normalization");

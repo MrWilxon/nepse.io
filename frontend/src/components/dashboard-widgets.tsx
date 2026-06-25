@@ -512,7 +512,7 @@ export function EventsWidget() {
                   </div>
                   <div>
                     <div className="text-xs font-bold text-primary-theme">{d.symbol}</div>
-                    <div className="text-[10px] text-muted-theme">Yield: {d.dividendYield}%</div>
+                    <div className="text-[10px] text-muted-theme">Yield: {d.dividendYield != null && d.dividendYield > 0 ? `${d.dividendYield}%` : "N/A"}</div>
                   </div>
                 </div>
                 <div className="text-right">

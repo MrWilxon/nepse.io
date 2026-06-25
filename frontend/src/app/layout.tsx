@@ -4,7 +4,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { useState, useEffect } from "react";
-import { Menu, Search } from "lucide-react";
+import { Menu, Search, RefreshCw } from "lucide-react";
 import { I18nProvider, useI18n } from "@/lib/i18n";
 import { safeFetch } from "@/lib/api";
 import { LanguageSwitcher } from "@/components/language-switcher";
@@ -43,6 +43,7 @@ function InnerLayout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [marketStatus, setMarketStatus] = useState<MarketStatus | null>(null);
   const [cmdOpen, setCmdOpen] = useState(false);
+  const [scraping, setScraping] = useState(false);
   const { t } = useI18n();
 
   useEffect(() => {
@@ -57,6 +58,18 @@ function InnerLayout({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     safeFetch<MarketStatus | null>(`${API_BASE}/api/market-status`, null).then(setMarketStatus);
   }, []);
+
+  const handleScrape = async () => {
+    setScraping(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/debug/scrape`);
+      const data = await res.json();
+      if (data.ok) {
+        window.location.reload();
+      }
+    } catch {}
+    setScraping(false);
+  };
 
   return (
     <>
@@ -112,6 +125,15 @@ function InnerLayout({ children }: { children: React.ReactNode }) {
                 </span>
               </div>
             )}
+            <button
+              onClick={handleScrape}
+              disabled={scraping}
+              title="Refresh live prices"
+              className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-theme text-muted-theme hover:border-accent hover:text-accent transition-colors text-xs disabled:opacity-50"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${scraping ? "animate-spin" : ""}`} />
+              <span className="hidden md:inline">{scraping ? "Syncing..." : "Refresh"}</span>
+            </button>
           </div>
         </header>
 

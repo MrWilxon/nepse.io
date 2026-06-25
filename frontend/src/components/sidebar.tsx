@@ -129,7 +129,7 @@ export default function Sidebar({ open, onClose }: { open: boolean; onClose: () 
         <div className="fixed inset-0 z-40 lg:hidden" style={{ background: "var(--overlay)" }} onClick={onClose} />
       )}
 
-      <aside className={`fixed lg:static inset-y-0 left-0 z-50 w-64 flex-shrink-0 flex flex-col border-r transition-transform duration-300 lg:translate-x-0 overflow-y-auto bg-surface border-theme ${open ? "translate-x-0" : "-translate-x-full"}`}>
+      <aside suppressHydrationWarning className={`fixed lg:static inset-y-0 left-0 z-50 w-64 flex-shrink-0 flex flex-col border-r transition-transform duration-300 lg:translate-x-0 overflow-y-auto bg-surface border-theme ${open ? "translate-x-0" : "-translate-x-full"}`}>
         {/* Logo */}
         <div className="flex items-center gap-3 px-5 py-4 border-b border-theme">
           <img src="/icon.svg" alt="NEPSE.io" className="h-9 w-9 rounded-xl shadow-lg shadow-[#D4A017]/20" />
@@ -159,7 +159,7 @@ export default function Sidebar({ open, onClose }: { open: boolean; onClose: () 
               </button>
             )}
           </div>
-          <div className="flex gap-1">
+          <div className="flex gap-1" suppressHydrationWarning>
             <button onClick={() => { setShowFavsOnly(false); setSearchQuery(""); }}
               className={`flex-1 py-1.5 rounded-md text-[10px] font-medium transition-colors ${!showFavsOnly ? "bg-accent-theme text-accent-theme border border-accent-border" : "text-muted-theme hover:text-primary-theme border border-transparent"}`}>
               All Pages

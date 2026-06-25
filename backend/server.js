@@ -4133,28 +4133,97 @@ app.get("/api/floorsheet", (req, res) => {
   });
 });
 
-app.get("/api/floorsheet/scrape", rateLimit, (req, res) => {
-  const { execFile } = require("child_process");
-  const scriptPath = path.join(__dirname, "..", "src", "scraper.py");
+app.get("/api/floorsheet/scrape", rateLimit, async (req, res) => {
   const timestamp = new Date().toISOString();
   broadcast({ type: "floorsheet_scrape_started", timestamp });
-  execFile("python", [scriptPath, "floorsheet"], { timeout: 120000, maxBuffer: 10 * 1024 * 1024 }, (err, stdout, stderr) => {
-    if (err) {
-      console.error("Floorsheet scraper error:", err.message);
-      broadcast({ type: "floorsheet_scrape_error", timestamp: new Date().toISOString(), error: err.message });
-      return res.status(500).json({ error: "Floorsheet scrape failed", details: err.message });
+
+  try {
+    const today = new Date().toISOString().slice(0, 10);
+    const NEPSE_FLOOR_URL = "https://www.nepalstock.com.np/api/nots/nepse-data/floorsheet";
+
+    let records = [];
+    let fetchDate = today;
+
+    const fetchPage = async (pageNo = 1) => {
+      const url = `${NEPSE_FLOOR_URL}?page=${pageNo}&size=500`;
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 30000);
+      try {
+        const resp = await fetch(url, {
+          signal: controller.signal,
+          headers: {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            Accept: "application/json",
+          },
+        });
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        return await resp.json();
+      } finally {
+        clearTimeout(timer);
+      }
+    };
+
+    const firstPage = await fetchPage(1);
+    const dataKey = Object.keys(firstPage).find((k) => Array.isArray(firstPage[k]));
+    const firstData = dataKey ? firstPage[dataKey] : firstPage.data || firstPage.content || firstPage.records || [];
+    const totalRecords = firstPage.totalRecords || firstPage.total || firstPage.totalElements || firstData.length;
+
+    for (const r of firstData) {
+      records.push({
+        sn: r.sn || r.SN || r.id || records.length + 1,
+        contractNo: r.contractNo || r.ContractNo || r.contract_no || "",
+        symbol: (r.symbol || r.Symbol || r.stockSymbol || "").toString().trim(),
+        buyerBroker: parseInt(r.buyerBroker || r.BuyerBroker || r.buyer_broker || 0),
+        sellerBroker: parseInt(r.sellerBroker || r.SellerBroker || r.seller_broker || 0),
+        quantity: parseInt(r.quantity || r.Quantity || r.totalQuantity || 0),
+        rate: parseFloat(r.rate || r.Rate || r.lastTradedPrice || 0),
+        amount: parseFloat(r.amount || r.Amount || r.totalAmount || 0),
+      });
     }
-    let result;
-    try {
-      const lines = stdout.trim().split("\n");
-      const jsonLine = lines.find((l) => l.startsWith("{"));
-      result = jsonLine ? JSON.parse(jsonLine) : { raw: stdout };
-    } catch {
-      result = { raw: stdout };
+
+    if (firstData.length > 0 && firstData[0].businessDate) {
+      fetchDate = firstData[0].businessDate.slice(0, 10);
     }
-    broadcast({ type: "floorsheet_scrape_complete", timestamp: new Date().toISOString(), result });
-    res.json({ message: "Floorsheet scrape completed", timestamp, result });
-  });
+
+    const totalPages = Math.ceil((totalRecords || 0) / 500);
+    for (let p = 2; p <= totalPages && p <= 20; p++) {
+      try {
+        const pageData = await fetchPage(p);
+        const rows = pageData[dataKey] || pageData.data || pageData.content || pageData.records || [];
+        for (const r of rows) {
+          records.push({
+            sn: r.sn || r.SN || r.id || records.length + 1,
+            contractNo: r.contractNo || r.ContractNo || r.contract_no || "",
+            symbol: (r.symbol || r.Symbol || r.stockSymbol || "").toString().trim(),
+            buyerBroker: parseInt(r.buyerBroker || r.BuyerBroker || r.buyer_broker || 0),
+            sellerBroker: parseInt(r.sellerBroker || r.SellerBroker || r.seller_broker || 0),
+            quantity: parseInt(r.quantity || r.Quantity || r.totalQuantity || 0),
+            rate: parseFloat(r.rate || r.Rate || r.lastTradedPrice || 0),
+            amount: parseFloat(r.amount || r.Amount || r.totalAmount || 0),
+          });
+        }
+        if (rows.length > 0 && rows[0].businessDate) {
+          fetchDate = rows[0].businessDate.slice(0, 10);
+        }
+      } catch {
+        break;
+      }
+    }
+
+    records = records.filter((r) => r.symbol);
+
+    const output = { date: fetchDate, records, totalRecords: records.length };
+    const dir = path.dirname(FLOORSHEET_FILE);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(FLOORSHEET_FILE, JSON.stringify(output, null, 2));
+
+    broadcast({ type: "floorsheet_scrape_complete", timestamp: new Date().toISOString(), result: { date: fetchDate, totalRecords: records.length } });
+    res.json({ message: "Floorsheet scrape completed", timestamp, result: { date: fetchDate, totalRecords: records.length } });
+  } catch (err) {
+    console.error("Floorsheet scrape error:", err.message);
+    broadcast({ type: "floorsheet_scrape_error", timestamp: new Date().toISOString(), error: err.message });
+    res.status(500).json({ error: "Floorsheet scrape failed", details: err.message });
+  }
 });
 
 // ═══════════════════════════════════════════════════════════

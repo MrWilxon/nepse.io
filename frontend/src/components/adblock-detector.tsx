@@ -10,22 +10,40 @@ export function useAdblockDetector() {
   const detect = useCallback(async () => {
     setLoading(true);
 
-    // 1. Fast Network Check
     let adblockDetected = false;
+    let isOnline = false;
+
+    // 1. Check if online by loading a neutral public resource (Google Fonts CSS)
     try {
-      // Fetching the adsbygoogle script directly is blocked by network-level adblockers
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 1500); // 1.5s timeout
-      await fetch("https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js", {
+      await fetch("https://fonts.googleapis.com/css?family=Inter", {
         method: "HEAD",
         mode: "no-cors",
-        cache: "no-store",
         signal: controller.signal,
       });
       clearTimeout(timeoutId);
-    } catch (err) {
-      if (err instanceof Error && err.name !== "AbortError") {
-        adblockDetected = true;
+      isOnline = true;
+    } catch (e) {
+      isOnline = false;
+    }
+
+    // 2. Fast Network Check (only if online to avoid false positives in offline/dev environments)
+    if (isOnline) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 1500); // 1.5s timeout
+        await fetch("https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js", {
+          method: "HEAD",
+          mode: "no-cors",
+          cache: "no-store",
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+      } catch (err) {
+        if (err instanceof Error && err.name !== "AbortError") {
+          adblockDetected = true;
+        }
       }
     }
 
@@ -35,7 +53,7 @@ export function useAdblockDetector() {
       return;
     }
 
-    // 2. Bait Element Check
+    // 3. Bait Element Check
     const bait = document.createElement("div");
     bait.className = "pub_300x250 pub_300x250m pub_728x90 text-ad textAd text_ad text_ads text-ads text-ad-links text-ad-links";
     bait.style.cssText = "width:1px;height:1px;position:absolute;left:-9999px;top:-9999px;";
@@ -71,15 +89,25 @@ export function useAdblockDetector() {
       return;
     }
 
-    // 3. Check if window.adsbygoogle was blocked
+    // 4. Try to push an ad to check if adsbygoogle is active and functional (only if it loaded)
     const adsbygoogle = (window as any).adsbygoogle;
-    if (!adsbygoogle || !Array.isArray(adsbygoogle)) {
-      // Script didn't load - wait another 1.5 seconds just in case it is slow
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-      const secondCheck = (window as any).adsbygoogle;
-      if (!secondCheck || !Array.isArray(secondCheck)) {
-        adblockDetected = true;
-      }
+    if (adsbygoogle && Array.isArray(adsbygoogle)) {
+      try {
+        const testEl = document.createElement("ins");
+        testEl.className = "adsbygoogle";
+        testEl.style.display = "none";
+        document.body.appendChild(testEl);
+        
+        try {
+          adsbygoogle.push({});
+        } catch {
+          adblockDetected = true;
+        } finally {
+          if (testEl.parentNode) {
+            testEl.parentNode.removeChild(testEl);
+          }
+        }
+      } catch {}
     }
 
     setDetected(adblockDetected);

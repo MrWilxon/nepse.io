@@ -54,6 +54,67 @@ let supabaseClient = null;
 
 function setSupabase(client) {
   supabaseClient = client;
+  if (client) {
+    initializeSupabaseCache().catch(e => console.error("[CACHE] Failed to run cache initialization:", e.message));
+  }
+}
+
+async function initializeSupabaseCache() {
+  if (!supabaseClient) return;
+
+  const cacheKeys = [
+    "dividends", "ipo", "fundamentals", "announcements",
+    "nepse_index", "mutual_funds", "debentures", "insider_trading",
+    "earnings_calendar", "brokers", "holdings"
+  ];
+
+  for (const key of cacheKeys) {
+    const cacheFile = path.join(CACHE_DIR, `${key}.json`);
+    if (fs.existsSync(cacheFile)) {
+      try {
+        const cached = JSON.parse(fs.readFileSync(cacheFile, "utf-8"));
+        if (cached && cached.data) {
+          // Check if key exists in Supabase
+          const { data: existing, error } = await supabaseClient
+            .from("scraped_data_cache")
+            .select("updated_at")
+            .eq("key", key)
+            .maybeSingle();
+
+          if (error) {
+            if (error.message.includes("Could not find the table")) {
+              console.warn(`[CACHE] Supabase table 'scraped_data_cache' is missing. Please run 'backend/schema-v3.sql' in your Supabase SQL editor.`);
+              return; // Exit early since table doesn't exist
+            }
+            console.warn(`[CACHE] Supabase read failed during initialization for ${key}:`, error.message);
+            continue;
+          }
+
+          const localTime = new Date(cached.timestamp).getTime();
+          const remoteTime = existing ? new Date(existing.updated_at).getTime() : 0;
+
+          if (!existing || localTime > remoteTime) {
+            console.log(`[CACHE] Seeding local cache '${key}' to Supabase...`);
+            const { error: upsertError } = await supabaseClient
+              .from("scraped_data_cache")
+              .upsert({
+                key,
+                data: cached.data,
+                updated_at: cached.timestamp || new Date().toISOString()
+              });
+
+            if (upsertError) {
+              console.error(`[CACHE] Seeding '${key}' failed:`, upsertError.message);
+            } else {
+              console.log(`[CACHE] Successfully seeded '${key}' to Supabase.`);
+            }
+          }
+        }
+      } catch (e) {
+        console.error(`[CACHE] Failed to seed '${key}' during initialization:`, e.message);
+      }
+    }
+  }
 }
 
 /**
@@ -166,8 +227,26 @@ async function getIPO(force = false) {
   if (!force) {
     let data = await readCache(cacheKey, 24);
     if (data) {
-      updateStatus(cacheKey, true, data.length);
-      return data;
+      const transformed = (Array.isArray(data) ? data : []).map(item => ({
+        symbol: item.symbol || "",
+        name: item.name || item.symbol || "",
+        sector: item.sector || "Other",
+        type: item.type || "IPO",
+        issuePrice: item.issuePrice || 0,
+        totalUnits: item.totalUnits || 0,
+        amount: item.amount || 0,
+        ratio: item.ratio,
+        openDate: item.openDate || "",
+        closeDate: item.closeDate || "",
+        applicationDate: item.applicationDate || "",
+        priceRange: item.priceRange || (item.amount && item.totalUnits
+          ? `Rs ${(item.amount / item.totalUnits).toFixed(2)}`
+          : item.issuePrice ? `Rs ${item.issuePrice}` : "TBA"),
+        status: item.status || "Upcoming",
+        issueManager: item.issueManager || "",
+      }));
+      updateStatus(cacheKey, true, transformed.length);
+      return transformed;
     }
   }
 
@@ -209,8 +288,25 @@ async function getDividends(symbols, force = false) {
   if (!force) {
     let data = await readCache(cacheKey, 48);
     if (data) {
-      updateStatus(cacheKey, true, Object.keys(data).length);
-      return data;
+      // Ensure all cache entries have the required UI fields
+      const transformed = {};
+      for (const [sym, divs] of Object.entries(data)) {
+        if (!Array.isArray(divs)) continue;
+        transformed[sym] = divs.map(d => ({
+          ...d,
+          date: d.date || d.bookCloseDate || d.distributionDate || d.announcementDate || "",
+          type: d.type || ((d.cashDividend > 0 && d.bonusDividend > 0) ? "cash+bonus" :
+                 d.cashDividend > 0 ? "cash" :
+                 d.bonusDividend > 0 ? "bonus" :
+                 d.rightsDividend > 0 ? "rights" : "cash"),
+          amount: d.amount != null ? d.amount : (d.totalDividend || d.cashDividend || 0),
+          exDate: d.exDate || d.bookCloseDate || d.announcementDate || "",
+          dividendYield: d.dividendYield || (d.ltp ? ((d.totalDividend || d.cashDividend || 0) / d.ltp * 100).toFixed(2) : "0"),
+          status: d.status || "upcoming",
+        }));
+      }
+      updateStatus(cacheKey, true, Object.keys(transformed).length);
+      return transformed;
     }
   }
 

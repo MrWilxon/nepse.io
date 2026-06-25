@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Star, TrendingUp, TrendingDown, Trash2, ArrowLeft } from "lucide-react";
+import { Star, TrendingUp, TrendingDown, Trash2, ArrowLeft, Minus } from "lucide-react";
 import { useWatchlist } from "@/lib/watchlist";
 import { API_BASE } from "@/lib/api";
 
@@ -103,10 +103,27 @@ export default function WatchlistPage() {
                       Rs. {s.ltp.toFixed(2)}
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <span className={`inline-flex items-center gap-1 text-xs font-mono font-medium ${s.change >= 0 ? "text-green-500" : "text-red-500"}`}>
-                        {s.change >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
-                        {s.change >= 0 ? "+" : ""}{s.changePercent.toFixed(2)}%
-                      </span>
+                      {(() => {
+                        const formatted = s.changePercent.toFixed(2);
+                        const isFlat = formatted === "0.00" || formatted === "-0.00";
+                        const isPositive = !isFlat && s.changePercent > 0;
+                        const isNegative = !isFlat && s.changePercent < 0;
+                        return (
+                          <span className={`inline-flex items-center gap-1 text-xs font-mono font-medium ${
+                            isPositive ? "text-green-500" : isNegative ? "text-red-500" : "text-muted-theme"
+                          }`}>
+                            {isPositive ? (
+                              <TrendingUp className="h-3 w-3" />
+                            ) : isNegative ? (
+                              <TrendingDown className="h-3 w-3" />
+                            ) : (
+                              <Minus className="h-3 w-3" />
+                            )}
+                            {isPositive ? "+" : ""}
+                            {isFlat ? "0.00" : formatted}%
+                          </span>
+                        );
+                      })()}
                     </td>
                     <td className="px-4 py-3 text-xs text-muted-theme font-mono text-right">{s.volume.toLocaleString()}</td>
                     <td className="px-4 py-3 text-center">

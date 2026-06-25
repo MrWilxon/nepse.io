@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { Zap, TrendingUp, TrendingDown, AlertTriangle, ArrowUpRight, ArrowDownRight, Filter, Search, Package } from "lucide-react";
+import { Zap, TrendingUp, TrendingDown, AlertTriangle, ArrowUpRight, ArrowDownRight, Filter, Search, Package, Minus } from "lucide-react";
 import { API_BASE } from "@/lib/api";
 
 interface Signal {
@@ -170,10 +170,27 @@ export default function AlertsPage() {
                       Rs {s.price.toLocaleString()}
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <span className={`inline-flex items-center gap-0.5 font-mono text-xs font-bold ${s.change >= 0 ? "text-[var(--green)]" : "text-[var(--red)]"}`}>
-                        {s.change >= 0 ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
-                        {s.change >= 0 ? "+" : ""}{s.change.toFixed(2)}%
-                      </span>
+                      {(() => {
+                        const formatted = s.change.toFixed(2);
+                        const isFlat = formatted === "0.00" || formatted === "-0.00";
+                        const isPositive = !isFlat && s.change > 0;
+                        const isNegative = !isFlat && s.change < 0;
+                        return (
+                          <span className={`inline-flex items-center gap-0.5 font-mono text-xs font-bold ${
+                            isPositive ? "text-[var(--green)]" : isNegative ? "text-[var(--red)]" : "text-[var(--text-muted)]"
+                          }`}>
+                            {isPositive ? (
+                              <ArrowUpRight className="h-3 w-3" />
+                            ) : isNegative ? (
+                              <ArrowDownRight className="h-3 w-3" />
+                            ) : (
+                              <Minus className="h-3 w-3" />
+                            )}
+                            {isPositive ? "+" : ""}
+                            {isFlat ? "0.00" : formatted}%
+                          </span>
+                        );
+                      })()}
                     </td>
                     <td className="px-4 py-3 text-right font-mono text-[var(--text-muted)]">
                       {s.volume >= 1e6 ? `${(s.volume / 1e6).toFixed(1)}M` : s.volume >= 1e3 ? `${(s.volume / 1e3).toFixed(0)}K` : s.volume.toLocaleString()}

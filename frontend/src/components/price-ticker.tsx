@@ -106,7 +106,15 @@ export default function PriceTicker() {
       </div>
       <div className="flex ticker-scroll pl-16">
         {[...items, ...items].map((item, i) => {
-          const dir = item.change > 0 ? "up" : item.change < 0 ? "down" : "flat";
+          const formattedChange = item.change.toFixed(2);
+          const isFlat = formattedChange === "0.00" || formattedChange === "-0.00";
+          const isPositive = !isFlat && item.change > 0;
+          const isNegative = !isFlat && item.change < 0;
+          
+          const dir = isPositive ? "up" : isNegative ? "down" : "flat";
+          const displayChange = isFlat ? "0.00" : formattedChange;
+          const displayPercent = isFlat ? "0.00" : item.changePercent.toFixed(2);
+
           return (
             <div
               key={`${item.symbol}-${i}`}
@@ -130,16 +138,16 @@ export default function PriceTicker() {
                 ) : (
                   <Minus className="h-2.5 w-2.5" />
                 )}
-                {item.change >= 0 ? "+" : ""}
-                {item.change.toFixed(2)}
+                {isPositive ? "+" : ""}
+                {displayChange}
               </span>
               <span
                 className={`text-[10px] font-mono font-bold ${
                   dir === "up" ? "text-green-theme" : dir === "down" ? "text-red-theme" : "text-muted-theme"
                 }`}
               >
-                ({item.changePercent >= 0 ? "+" : ""}
-                {item.changePercent.toFixed(2)}%)
+                ({isPositive ? "+" : ""}
+                {displayPercent}%)
               </span>
             </div>
           );

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { Search, Filter, Download, TrendingUp, TrendingDown, ArrowUpDown, RotateCcw } from "lucide-react";
+import { Search, Filter, Download, TrendingUp, TrendingDown, ArrowUpDown, RotateCcw, Minus } from "lucide-react";
 import { API_BASE } from "@/lib/api";
 
 interface ScreenerResult {
@@ -274,10 +274,29 @@ export default function ScreenerPage() {
                     </td>
                     <td className="px-4 py-3 font-mono text-[var(--text-primary)]">Rs {r.ltp.toLocaleString()}</td>
                     <td className="px-4 py-3">
-                      <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-bold ${r.change >= 0 ? "bg-[var(--green-bg)] text-[var(--green)]" : "bg-[var(--red-bg)] text-[var(--red)]"}`}>
-                        {r.change >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
-                        {r.change >= 0 ? "+" : ""}{r.change.toFixed(2)}%
-                      </span>
+                      {(() => {
+                        const formatted = r.change.toFixed(2);
+                        const isFlat = formatted === "0.00" || formatted === "-0.00";
+                        const isPositive = !isFlat && r.change > 0;
+                        const isNegative = !isFlat && r.change < 0;
+                        return (
+                          <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-bold ${
+                            isPositive ? "bg-[var(--green-bg)] text-[var(--green)]"
+                              : isNegative ? "bg-[var(--red-bg)] text-[var(--red)]"
+                              : "bg-[var(--bg-secondary)] text-[var(--text-muted)]"
+                          }`}>
+                            {isPositive ? (
+                              <TrendingUp className="h-3 w-3" />
+                            ) : isNegative ? (
+                              <TrendingDown className="h-3 w-3" />
+                            ) : (
+                              <Minus className="h-3 w-3" />
+                            )}
+                            {isPositive ? "+" : ""}
+                            {isFlat ? "0.00" : formatted}%
+                          </span>
+                        );
+                      })()}
                     </td>
                     <td className="px-4 py-3 font-mono text-[var(--text-muted)]">{r.volume.toLocaleString()}</td>
                     <td className="px-4 py-3 font-mono text-[var(--text-muted)]">{r.marketCap > 0 ? `Rs ${(r.marketCap / 1e9).toFixed(1)}B` : "-"}</td>

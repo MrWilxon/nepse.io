@@ -559,9 +559,9 @@ function SectorsWidget({ heatmap }: { heatmap: HeatmapData[] }) {
               <div className="text-[10px] text-muted-theme">{s.marketShare.toFixed(1)}% share</div>
             </div>
             <div className={`text-xs font-bold font-mono ${
-              s.change >= 0 ? "text-[#22c55e]" : "text-[#ef4444]"
+              s.change > 0 ? "text-[#22c55e]" : s.change < 0 ? "text-[#ef4444]" : "text-muted-theme"
             }`}>
-              {s.change >= 0 ? "+" : ""}{s.change.toFixed(2)}%
+              {s.change.toFixed(2) === "0.00" || s.change.toFixed(2) === "-0.00" ? "0.00" : (s.change > 0 ? "+" : "") + s.change.toFixed(2)}%
             </div>
           </Link>
         ))}
@@ -727,8 +727,10 @@ function StockListModal({
                     <td className="px-5 py-2.5 text-[11px] text-muted-theme">{s.category}</td>
                     <td className="px-5 py-2.5 text-xs text-primary-theme font-mono text-right">Rs. {s.close.toFixed(2)}</td>
                     <td className="px-5 py-2.5 text-right">
-                      <span className={`text-xs font-mono font-medium ${s.change >= 0 ? "text-green-500" : "text-red-500"}`}>
-                        {s.change >= 0 ? "+" : ""}{s.change.toFixed(2)}%
+                      <span className={`text-xs font-mono font-medium ${
+                        s.change > 0 ? "text-green-500" : s.change < 0 ? "text-red-500" : "text-muted-theme"
+                      }`}>
+                        {s.change.toFixed(2) === "0.00" || s.change.toFixed(2) === "-0.00" ? "0.00" : (s.change > 0 ? "+" : "") + s.change.toFixed(2)}%
                       </span>
                     </td>
                     <td className="px-5 py-2.5 text-xs text-muted-theme font-mono text-right">{s.volume.toLocaleString()}</td>

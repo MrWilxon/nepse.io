@@ -3477,16 +3477,18 @@ app.get("/api/dividend-calendar", async (req, res) => {
     for (const [symbol, divs] of Object.entries(allDividends)) {
       if (!Array.isArray(divs)) continue;
       for (const d of divs) {
-        // Use the most relevant upcoming date for filtering
+        // Include if status is upcoming/open, or if any relevant date is in the future
         const upcomingDate = d.bookCloseDate || d.distributionDate || d.announcementDate || d.date || "";
-        if (upcomingDate && upcomingDate >= today) {
+        const isUpcoming = d.status === "upcoming" || d.status === "open";
+        const hasFutureDate = upcomingDate && upcomingDate >= today;
+        if (isUpcoming || hasFutureDate) {
           calendar.push({ symbol, ...d, date: upcomingDate });
         }
       }
     }
     calendar.sort((a, b) => (a.date || "").localeCompare(b.date || ""));
     const upcomingCount = calendar.length;
-    const totalCashDividends = calendar.filter(d => d.type === "cash").reduce((s, d) => s + (d.amount || 0), 0);
+    const totalCashDividends = calendar.filter(d => d.type === "cash" || d.type === "cash+bonus").reduce((s, d) => s + (d.amount || 0), 0);
     res.json({
       calendar,
       summary: { totalEntries: calendar.length, upcomingCount, totalCashDividends, avgDividendYield: 0 },

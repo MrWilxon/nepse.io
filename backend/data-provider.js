@@ -176,8 +176,9 @@ async function getDividends(symbols, force = false) {
         transformed[sym] = divs.map(d => ({
           ...d,
           // Fields for dividend-calendar endpoint filter
-          date: d.announcementDate || d.bookCloseDate || "",
-          type: (d.cashDividend > 0 && d.bonusDividend > 0) ? "cash" :
+          date: d.bookCloseDate || d.distributionDate || d.announcementDate || "",
+          type: (d.cashDividend > 0 && d.bonusDividend > 0) ? "cash+bonus" :
+                d.cashDividend > 0 ? "cash" :
                 d.bonusDividend > 0 ? "bonus" :
                 d.rightsDividend > 0 ? "rights" : "cash",
           amount: d.totalDividend || d.cashDividend || 0,
@@ -296,7 +297,8 @@ async function getEarningsCalendar(force = false) {
   }
 
   updateStatus(cacheKey, false, 0);
-  return generateSyntheticEarnings();
+  // Return empty array instead of synthetic data - let frontend handle gracefully
+  return [];
 }
 
 async function getBrokers(force = false) {

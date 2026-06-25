@@ -4,6 +4,7 @@ import re
 import sys
 import urllib.request
 import urllib.parse
+from datetime import datetime, timedelta
 from .config import cache_get, cache_set, safe_float, BASE_URL, HEADERS
 
 PAGE_SIZE = 50
@@ -39,6 +40,69 @@ def _fetch_page(start=0):
         return json.loads(resp.read().decode("utf-8"))
 
 
+def _get_dividends_from_announcements():
+    """Fallback: extract upcoming dividends from announcements scraper."""
+    try:
+        from .announcements import scrape_announcements
+        announcements = scrape_announcements()
+        today = datetime.now().strftime("%Y-%m-%d")
+        cutoff = (datetime.now() - timedelta(days=90)).strftime("%Y-%m-%d")
+
+        dividends = {}
+        for ann in announcements:
+            if ann.get("type") != "dividend":
+                continue
+            date = ann.get("date", "")
+            if date < cutoff:
+                continue
+            symbol = ann.get("symbol", "").upper()
+            if not symbol:
+                continue
+
+            title = ann.get("title", "")
+            cash = 0
+            bonus = 0
+
+            cash_match = re.search(r"Rs\.?\s*(\d+(?:\.\d+)?)\s*(?:per share|cash|dividend)", title, re.IGNORECASE)
+            if cash_match:
+                cash = safe_float(cash_match.group(1))
+
+            bonus_match = re.search(r"(\d+(?:\.\d+)?)\s*%\s*bonus", title, re.IGNORECASE)
+            if not bonus_match:
+                bonus_match = re.search(r"bonus\s*(?:share)?\s*(\d+(?:\.\d+)?)", title, re.IGNORECASE)
+            if bonus_match:
+                bonus = safe_float(bonus_match.group(1))
+
+            if cash == 0 and bonus == 0:
+                if "bonus" in title.lower():
+                    bonus = 10
+                elif "dividend" in title.lower() or "cash" in title.lower():
+                    cash = 10
+
+            if symbol not in dividends:
+                dividends[symbol] = []
+
+            dividends[symbol].append({
+                "fiscalYear": "",
+                "cashDividend": cash,
+                "bonusDividend": bonus,
+                "rightsDividend": 0,
+                "totalDividend": cash if cash > 0 else bonus,
+                "announcementDate": date,
+                "bookCloseDate": "",
+                "distributionDate": "",
+                "bonusListingDate": "",
+                "ltp": None,
+                "status": "upcoming",
+                "_source": "announcements",
+            })
+
+        return dividends
+    except Exception as e:
+        print(f"Dividend fallback error: {e}", file=sys.stderr)
+        return {}
+
+
 def scrape_dividends(symbols=None, force=False):
     cache_key = "dividends"
     if not force:
@@ -51,6 +115,7 @@ def scrape_dividends(symbols=None, force=False):
         first_page = _fetch_page(0)
         total = first_page.get("recordsTotal", 0)
         if total == 0:
+            all_dividends = _get_dividends_from_announcements()
             cache_set(cache_key, all_dividends)
             return all_dividends
 
@@ -99,10 +164,14 @@ def scrape_dividends(symbols=None, force=False):
                 entry["status"] = "closed"
 
             all_dividends[symbol].append(entry)
+
+        if not all_dividends:
+            all_dividends = _get_dividends_from_announcements()
     except Exception as e:
         import traceback
         print(f"SCRAPER ERROR: {type(e).__name__}: {e}", file=sys.stderr)
         traceback.print_exc(file=sys.stderr)
+        all_dividends = _get_dividends_from_announcements()
 
     cache_set(cache_key, all_dividends)
     return all_dividends

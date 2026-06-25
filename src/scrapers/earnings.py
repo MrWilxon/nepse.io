@@ -1,9 +1,59 @@
 """Scrape earnings calendar from ShareSansar."""
 import json
+import re
 import sys
-import time
+from datetime import datetime, timedelta
 from bs4 import BeautifulSoup
 from .config import create_session, cache_get, cache_set, safe_float, BASE_URL
+
+
+def _get_earnings_from_announcements():
+    """Fallback: extract earnings-related announcements."""
+    try:
+        from .announcements import scrape_announcements
+        announcements = scrape_announcements()
+        today = datetime.now().strftime("%Y-%m-%d")
+        cutoff = (datetime.now() - timedelta(days=90)).strftime("%Y-%m-%d")
+
+        earnings = []
+        for ann in announcements:
+            if ann.get("type") != "report":
+                continue
+            date = ann.get("date", "")
+            if date < cutoff:
+                continue
+            symbol = ann.get("symbol", "").upper()
+            if not symbol:
+                continue
+
+            title = ann.get("title", "")
+            fiscal_year = ""
+            fy_match = re.search(r"FY\s*(\d{4}(?:/\d{4})?)", title, re.IGNORECASE)
+            if fy_match:
+                fiscal_year = fy_match.group(1)
+
+            report_type = "Annual"
+            if "quarterly" in title.lower() or "q1" in title.lower() or "q2" in title.lower() or "q3" in title.lower() or "q4" in title.lower():
+                report_type = "Quarterly"
+            elif "annual" in title.lower():
+                report_type = "Annual"
+
+            earnings.append({
+                "symbol": symbol,
+                "companyName": symbol,
+                "sector": "Other",
+                "reportType": report_type,
+                "announcementDate": date,
+                "fiscalYear": fiscal_year,
+                "estimatedEPS": None,
+                "previousEPS": None,
+                "_source": "announcements",
+            })
+
+        return earnings
+    except Exception as e:
+        print(f"Earnings fallback error: {e}", file=sys.stderr)
+        return []
 
 
 def scrape_earnings_calendar(force=False):
@@ -65,7 +115,10 @@ def scrape_earnings_calendar(force=False):
                     earnings.append(entry)
 
     except Exception as e:
-        earnings = [{"error": str(e)}]
+        print(f"SCRAPER ERROR: {type(e).__name__}: {e}", file=sys.stderr)
+
+    if not earnings:
+        earnings = _get_earnings_from_announcements()
 
     cache_set(cache_key, earnings)
     return earnings

@@ -88,13 +88,14 @@ function startScheduler(onLivePricesRefresh) {
     runScraperSafe("announcements", () => dataProvider.getAnnouncements(true));
     runScraperSafe("fundamentals", () => dataProvider.getFundamentals(null, true), 300000);
     runScraperSafe("brokers", () => dataProvider.getBrokers(true));
+    runScraperSafe("ipo", () => dataProvider.getIPO(true));
+    runScraperSafe("dividends", () => dataProvider.getDividends(null, true));
+    runScraperSafe("earnings", () => dataProvider.getEarningsCalendar(true));
   }, { timezone: "Asia/Kathmandu" });
 
   cron.schedule("0 3 * * 6", () => {
     log("Running weekly fundamentals refresh...");
     runScraperSafe("fundamentals", () => dataProvider.getFundamentals(null, true), 300000);
-    runScraperSafe("ipo", () => dataProvider.getIPO(true));
-    runScraperSafe("dividends", () => dataProvider.getDividends(true));
   }, { timezone: "Asia/Kathmandu" });
 
   log("Scheduler started (live-prices + trading-hours: */15 11-15 NPT, morning: 06:00, daily: 20:00, weekly: Sat 03:00)");

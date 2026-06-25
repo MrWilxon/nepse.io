@@ -117,12 +117,17 @@ export interface IPORecord {
   symbol: string;
   name: string;
   sector: string;
+  type: string;
   issuePrice: number;
-  issueDate: string;
+  totalUnits: number;
+  amount: number;
+  ratio: string;
+  openDate: string;
+  closeDate: string;
+  applicationDate: string;
+  priceRange: string;
   status: string;
-  lots: number;
-  price: number;
-  change: number;
+  issueManager: string;
 }
 
 export async function fetchCompanies(): Promise<CompanySummary[]> {

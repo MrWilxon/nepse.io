@@ -21,6 +21,7 @@ import {
   Layers,
   Target,
   LineChart,
+  Radio,
   Wallet,
   BookOpen,
   PieChart,
@@ -124,6 +125,7 @@ export function getNavCategories(t: (key: string) => string): NavCategory[] {
       items: [
         { href: "/order-book", label: t("nav.orderDepth"), icon: BarChart3 },
         { href: "/risk-calculator", label: t("nav.riskCalculator"), icon: Calculator },
+        { href: "/signal", label: t("nav.signal"), icon: Radio },
         { href: "/alerts", label: t("nav.technicalAlerts"), icon: AlertTriangle },
         { href: "/alerts-config", label: t("nav.targetAlerts"), icon: AlertTriangle },
       ],

@@ -93,12 +93,12 @@ export default function IPOPage() {
                 <th className="px-4 py-3">Symbol</th>
                 <th className="px-4 py-3">Company</th>
                 <th className="px-4 py-3">Sector</th>
+                <th className="px-4 py-3">Type</th>
                 <th className="px-4 py-3 text-right">Issue Price</th>
-                <th className="px-4 py-3">Issue Date</th>
+                <th className="px-4 py-3">Open Date</th>
+                <th className="px-4 py-3">Close Date</th>
                 <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3 text-right">Lots</th>
-                <th className="px-4 py-3 text-right">Price</th>
-                <th className="px-4 py-3 text-right">Change</th>
+                <th className="px-4 py-3">Issue Manager</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--border-primary)]">
@@ -117,11 +117,17 @@ export default function IPOPage() {
                   <td className="px-4 py-3 text-[var(--text-muted)] text-xs">
                     {ipo.sector}
                   </td>
+                  <td className="px-4 py-3 text-[var(--text-muted)] text-xs">
+                    {ipo.type}
+                  </td>
                   <td className="px-4 py-3 text-right font-mono">
                     Rs {ipo.issuePrice.toLocaleString()}
                   </td>
                   <td className="px-4 py-3 text-[var(--text-muted)] text-xs">
-                    {ipo.issueDate}
+                    {ipo.openDate}
+                  </td>
+                  <td className="px-4 py-3 text-[var(--text-muted)] text-xs">
+                    {ipo.closeDate}
                   </td>
                   <td className="px-4 py-3">
                     <span
@@ -139,19 +145,8 @@ export default function IPOPage() {
                       {ipo.status}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-right text-[var(--text-muted)]">
-                    {ipo.lots.toLocaleString()}
-                  </td>
-                  <td className="px-4 py-3 text-right font-mono">
-                    Rs {ipo.price.toLocaleString()}
-                  </td>
-                  <td
-                    className={`px-4 py-3 text-right font-mono text-xs font-medium ${
-                      ipo.change >= 0 ? "text-[var(--green)]" : "text-[var(--red)]"
-                    }`}
-                  >
-                    {ipo.change >= 0 ? "+" : ""}
-                    {ipo.change.toFixed(2)}%
+                  <td className="px-4 py-3 text-[var(--text-muted)] text-xs">
+                    {ipo.issueManager}
                   </td>
                 </tr>
               ))}

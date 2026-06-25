@@ -10,15 +10,16 @@ import {
   XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend,
   RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
 } from "recharts";
-import { API_BASE, type BrokerTrendsResponse, type BrokerRankingsResponse, type BrokerCompareResponse, type BrokerParticipationResponse, type BrokerRanking, type BrokerComparisonItem } from "@/lib/api";
+import { API_BASE, getBrokerName, type BrokerTrendsResponse, type BrokerRankingsResponse, type BrokerCompareResponse, type BrokerParticipationResponse, type BrokerRanking, type BrokerComparisonItem } from "@/lib/api";
 
 const COLORS = ["#D4A017", "#22c55e", "#ef4444", "#3b82f6", "#a855f7", "#f97316", "#06b6d4", "#ec4899"];
 
 function formatAmt(amt: number): string {
-  if (amt >= 1e9) return `${(amt / 1e9).toFixed(2)}Cr`;
-  if (amt >= 1e7) return `${(amt / 1e7).toFixed(2)}L`;
-  if (amt >= 1e5) return `${(amt / 1e5).toFixed(1)}K`;
-  return amt.toLocaleString();
+  if (amt >= 1e9) return `Rs ${(amt / 1e9).toFixed(2)}B`;
+  if (amt >= 1e7) return `Rs ${(amt / 1e7).toFixed(2)}Cr`;
+  if (amt >= 1e5) return `Rs ${(amt / 1e5).toFixed(1)}L`;
+  if (amt >= 1e3) return `Rs ${(amt / 1e3).toFixed(1)}K`;
+  return `Rs ${amt.toLocaleString()}`;
 }
 
 function formatQty(qty: number): string {
@@ -129,7 +130,8 @@ export default function BrokerAnalysisPage() {
             <span className="text-xs text-muted-theme">Track brokers:</span>
             {selectedBrokers.map(n => (
               <span key={n} className="flex items-center gap-1 bg-accent-theme/10 text-accent-theme px-2 py-0.5 rounded-lg text-xs font-medium">
-                #{n}
+                <span className="font-bold">#{n}</span>
+                <span className="text-[10px] text-muted-theme hidden sm:inline">{getBrokerName(n)}</span>
                 <button onClick={() => removeBroker(n)} className="hover:text-primary-theme"><X className="h-3 w-3" /></button>
               </span>
             ))}
@@ -323,7 +325,10 @@ export default function BrokerAnalysisPage() {
                       {rankings.rankings.map((r, i) => (
                         <tr key={r.brokerNo} className="table-row">
                           <td className="px-4 py-2.5 text-muted-theme font-mono text-xs">{i + 1}</td>
-                          <td className="px-4 py-2.5 font-bold text-primary-theme">#{r.brokerNo}</td>
+                          <td className="px-4 py-2.5">
+                            <div className="font-bold text-primary-theme">#{r.brokerNo}</div>
+                            <div className="text-[10px] text-muted-theme truncate max-w-[150px]">{getBrokerName(r.brokerNo)}</div>
+                          </td>
                           <td className="text-right px-4 py-2.5 font-mono text-accent-theme font-bold">{r.score.toFixed(4)}</td>
                           <td className="text-right px-4 py-2.5 font-mono text-body-theme">{formatAmt(r.totalTurnover)}</td>
                           <td className="text-right px-4 py-2.5 font-mono text-body-theme">{formatAmt(r.avgTurnover)}</td>
@@ -374,7 +379,7 @@ export default function BrokerAnalysisPage() {
                   <div className="flex items-center justify-between">
                     <h3 className="text-lg font-bold text-primary-theme flex items-center gap-2">
                       <span className="w-3 h-3 rounded-full" style={{ background: COLORS[idx % COLORS.length] }} />
-                      Broker #{comp.brokerNo}
+                      #{comp.brokerNo} &mdash; {getBrokerName(comp.brokerNo)}
                       <span className={`text-xs px-2 py-0.5 rounded-lg font-medium ${
                         comp.summary.netDirection === "net_buy" ? "bg-green-theme text-green-theme"
                           : comp.summary.netDirection === "net_sell" ? "bg-red-theme text-red-theme"

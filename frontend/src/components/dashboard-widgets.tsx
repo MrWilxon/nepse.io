@@ -37,7 +37,7 @@ import {
   LayoutGrid,
   LayoutDashboard,
 } from "lucide-react";
-import { safeFetch, API_BASE } from "@/lib/api";
+import { safeFetch, API_BASE, getBrokerName } from "@/lib/api";
 import type { CompanySummary } from "@/lib/api";
 
 export interface DashboardWidget {
@@ -610,16 +610,16 @@ export function TopBrokersWidget() {
               {b.brokerNo}
             </div>
             <div>
-              <div className="text-xs font-bold text-primary-theme">Broker {b.brokerNo}</div>
+              <div className="text-xs font-bold text-primary-theme">{getBrokerName(b.brokerNo)}</div>
               <div className={`text-[10px] font-medium ${
                 b.netDirection === "net_buy" ? "text-green-400" : b.netDirection === "net_sell" ? "text-red-400" : "text-muted-theme"
               }`}>
-                {b.netDirection === "net_buy" ? "Net Buyer" : b.netDirection === "net_sell" ? "Net Seller" : "Neutral"}
+                #{b.brokerNo} &middot; {b.netDirection === "net_buy" ? "Net Buyer" : b.netDirection === "net_sell" ? "Net Seller" : "Neutral"}
               </div>
             </div>
           </div>
           <div className="text-right">
-            <div className="text-xs font-mono text-primary-theme">Rs {(b.turnover / 1_000_000).toFixed(0)}M</div>
+            <div className="text-xs font-mono text-primary-theme">{b.turnover >= 1e7 ? `Rs ${(b.turnover / 1e7).toFixed(1)}Cr` : b.turnover >= 1e5 ? `Rs ${(b.turnover / 1e5).toFixed(1)}L` : `Rs ${(b.turnover / 1e3).toFixed(0)}K`}</div>
           </div>
         </Link>
       ))}

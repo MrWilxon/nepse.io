@@ -7,7 +7,7 @@ import {
   PieChart, Layers, X,
 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Cell } from "recharts";
-import { API_BASE, type BrokersResponse, type BrokerData, type BrokerDetailResponse, type BrokerHoldingsResponse, type TopStocksByBrokerResponse, type BrokerHoldingStock, type BrokerTopTradesResponse, type BrokerTopTradeBroker } from "@/lib/api";
+import { API_BASE, getBrokerName, type BrokersResponse, type BrokerData, type BrokerDetailResponse, type BrokerHoldingsResponse, type TopStocksByBrokerResponse, type BrokerHoldingStock, type BrokerTopTradesResponse, type BrokerTopTradeBroker } from "@/lib/api";
 
 const PAGE_SIZE = 25;
 
@@ -19,9 +19,10 @@ function formatQty(qty: number): string {
 }
 
 function formatAmt(amt: number): string {
-  if (amt >= 1e9) return `${(amt / 1e9).toFixed(2)}Cr`;
-  if (amt >= 1e7) return `${(amt / 1e7).toFixed(2)}L`;
-  if (amt >= 1e5) return `${(amt / 1e5).toFixed(1)}K`;
+  if (amt >= 1e9) return `Rs ${(amt / 1e9).toFixed(2)}B`;
+  if (amt >= 1e7) return `Rs ${(amt / 1e7).toFixed(2)}Cr`;
+  if (amt >= 1e5) return `Rs ${(amt / 1e5).toFixed(1)}L`;
+  if (amt >= 1e3) return `Rs ${(amt / 1e3).toFixed(1)}K`;
   return `Rs ${amt.toLocaleString()}`;
 }
 
@@ -49,11 +50,12 @@ function saveFavorites(favs: number[]) {
 }
 
 function downloadCSV(brokers: BrokerData[], summary: { totalTurnover: number }, date: string) {
-  const header = "Broker #,Buy Qty,Buy Amount,Sell Qty,Sell Amount,Turnover,Net Qty,Direction,Market Share (%),Buy %";
+  const header = "Broker #,Broker Name,Buy Qty,Buy Amount,Sell Qty,Sell Amount,Turnover,Net Qty,Direction,Market Share (%),Buy %";
   const rows = brokers.map(b => {
     const ms = summary.totalTurnover > 0 ? ((b.turnover / summary.totalTurnover) * 100).toFixed(2) : "0.00";
     const buyPct = (b.buyAmt + b.sellAmt) > 0 ? ((b.buyAmt / (b.buyAmt + b.sellAmt)) * 100).toFixed(1) : "50.0";
-    return `${b.brokerNo},${b.buyQty},${b.buyAmt},${b.sellQty},${b.sellAmt},${b.turnover},${b.netQty},${b.netDirection},${ms},${buyPct}`;
+    const name = getBrokerName(b.brokerNo).replace(/,/g, " ");
+    return `${b.brokerNo},${name},${b.buyQty},${b.buyAmt},${b.sellQty},${b.sellAmt},${b.turnover},${b.netQty},${b.netDirection},${ms},${buyPct}`;
   });
   const csv = [header, ...rows].join("\n");
   const blob = new Blob([csv], { type: "text/csv" });
@@ -157,8 +159,14 @@ export default function BrokersPage() {
     else if (filterPreset === "netSellers") list = list.filter(b => b.netDirection === "net_sell");
     else if (filterPreset === "favorites") list = list.filter(b => favorites.includes(b.brokerNo));
     if (searchQuery) {
-      const q = searchQuery.trim();
-      if (q) { const n = parseInt(q); if (!isNaN(n)) list = list.filter(b => b.brokerNo === n); }
+      const q = searchQuery.trim().toLowerCase();
+      if (q) {
+        const n = parseInt(q);
+        list = list.filter(b =>
+          (!isNaN(n) && b.brokerNo === n) ||
+          getBrokerName(b.brokerNo).toLowerCase().includes(q)
+        );
+      }
     }
     return list;
   }, [allBrokers, filterPreset, favorites, searchQuery]);
@@ -324,11 +332,13 @@ export default function BrokersPage() {
                             </span>
                           </td>
                           <td className="text-right px-4 py-2.5 text-xs text-body-theme">{s.brokerCount}</td>
-                          <td className="text-center px-4 py-2.5">
-                            <span className="text-xs font-bold text-green-theme">#{s.topBuyer.brokerNo}</span>
+                          <td className="px-4 py-2.5">
+                            <div className="text-xs font-bold text-green-theme">#{s.topBuyer.brokerNo}</div>
+                            <div className="text-[10px] text-muted-theme truncate max-w-[100px]">{getBrokerName(s.topBuyer.brokerNo)}</div>
                           </td>
-                          <td className="text-center px-4 py-2.5">
-                            <span className="text-xs font-bold text-red-theme">#{s.topSeller.brokerNo}</span>
+                          <td className="px-4 py-2.5">
+                            <div className="text-xs font-bold text-red-theme">#{s.topSeller.brokerNo}</div>
+                            <div className="text-[10px] text-muted-theme truncate max-w-[100px]">{getBrokerName(s.topSeller.brokerNo)}</div>
                           </td>
                         </tr>
                       );
@@ -417,7 +427,10 @@ export default function BrokersPage() {
                     <tbody>
                       {topTrades.brokers.slice(0, 20).map((b) => (
                         <tr key={b.brokerNo} className="table-row">
-                          <td className="px-3 py-2 font-bold text-primary-theme">#{b.brokerNo}</td>
+                          <td className="px-3 py-2">
+                            <div className="font-bold text-primary-theme">#{b.brokerNo}</div>
+                            <div className="text-[10px] text-muted-theme truncate max-w-[80px]">{getBrokerName(b.brokerNo)}</div>
+                          </td>
                           <td className="px-3 py-2">
                             <div className="flex flex-wrap gap-1">
                               {b.topBuys.map(s => (
@@ -468,7 +481,10 @@ export default function BrokersPage() {
                         );
                         return sorted.slice(0, 20).map((b) => (
                           <tr key={b.brokerNo} className="table-row">
-                            <td className="px-3 py-2 font-bold text-primary-theme">#{b.brokerNo}</td>
+                            <td className="px-3 py-2">
+                              <div className="font-bold text-primary-theme">#{b.brokerNo}</div>
+                              <div className="text-[10px] text-muted-theme truncate max-w-[80px]">{getBrokerName(b.brokerNo)}</div>
+                            </td>
                             <td className="px-3 py-2">
                               <div className="flex flex-wrap gap-1">
                                 {b.topBuys.map(s => (
@@ -528,7 +544,7 @@ export default function BrokersPage() {
               type="text"
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
-              placeholder="Search broker # ..."
+              placeholder="Search by name or # ..."
               className="w-full bg-input-theme border border-theme rounded-lg pl-8 pr-3 py-1.5 text-xs text-primary-theme placeholder:text-muted-theme focus:outline-none focus:border-accent-theme"
             />
             {searchQuery && (
@@ -606,11 +622,14 @@ export default function BrokersPage() {
                             <Star className={`h-3.5 w-3.5 ${isFav ? "fill-accent-theme" : ""}`} />
                           </button>
                         </td>
-                        <td className="px-3 py-2.5 font-bold text-primary-theme whitespace-nowrap">
-                          #{b.brokerNo}
-                          <span className={`ml-1.5 text-[10px] font-normal ${b.netDirection === "net_buy" ? "text-green-theme" : b.netDirection === "net_sell" ? "text-red-theme" : "text-muted-theme"}`}>
-                            {b.netDirection === "net_buy" ? "△" : b.netDirection === "net_sell" ? "▽" : "—"}
-                          </span>
+                        <td className="px-3 py-2.5 whitespace-nowrap">
+                          <div className="flex items-center gap-1">
+                            <span className="font-bold text-primary-theme">#{b.brokerNo}</span>
+                            <span className={`text-[10px] font-normal ${b.netDirection === "net_buy" ? "text-green-theme" : b.netDirection === "net_sell" ? "text-red-theme" : "text-muted-theme"}`}>
+                              {b.netDirection === "net_buy" ? "△" : b.netDirection === "net_sell" ? "▽" : "—"}
+                            </span>
+                          </div>
+                          <div className="text-[10px] text-muted-theme mt-0.5 truncate max-w-[140px]">{getBrokerName(b.brokerNo)}</div>
                         </td>
                         <td className="text-right px-2 py-2.5">
                           <div className="flex items-center justify-end gap-1.5">
@@ -693,14 +712,16 @@ export default function BrokersPage() {
       {detail && selectedBroker && (
         <div className="card-3d p-5 space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-bold text-primary-theme flex items-center gap-2">
-              Broker #{detail.broker.brokerNo}
-              <span className={`text-xs px-2 py-0.5 rounded-lg font-medium ${
-                detail.broker.netDirection === "net_buy" ? "bg-green-theme text-green-theme" : "bg-red-theme text-red-theme"
-              }`}>
-                {detail.broker.netDirection === "net_buy" ? "Net Buyer" : "Net Seller"}
-              </span>
-            </h2>
+            <div>
+              <h2 className="text-lg font-bold text-primary-theme flex items-center gap-2">
+                #{detail.broker.brokerNo} &mdash; {getBrokerName(detail.broker.brokerNo)}
+                <span className={`text-xs px-2 py-0.5 rounded-lg font-medium ${
+                  detail.broker.netDirection === "net_buy" ? "bg-green-theme/20 text-green-theme" : "bg-red-theme/20 text-red-theme"
+                }`}>
+                  {detail.broker.netDirection === "net_buy" ? "Net Buyer" : "Net Seller"}
+                </span>
+              </h2>
+            </div>
             <button onClick={() => setSelectedBroker(null)} className="text-muted-theme hover:text-primary-theme text-sm">Close</button>
           </div>
 

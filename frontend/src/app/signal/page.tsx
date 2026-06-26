@@ -27,11 +27,11 @@ interface SignalData {
 
 const FREE_SIGNALS: SignalData[] = [
   {
-    symbol: "HEI",
-    name: "Himalayan Energy",
-    buyZone: 565.0,
-    stopLoss: 538,
-    takeProfit: 675,
+    symbol: "UPPER",
+    name: "Upper Tamakoshi Hydropower",
+    buyZone: 189,
+    stopLoss: 170,
+    takeProfit: 327,
     postedBy: "GoldenEdge",
     postedAt: "Jun 5, 2026, 2:28 PM",
   },
@@ -78,7 +78,7 @@ const PAID_SIGNALS: SignalData[] = [
   { symbol: "LSL", name: "Laxmi Sunrise Bank Ltd.", buyZone: 0, stopLoss: 0, takeProfit: 0, postedBy: "GoldenEdge", postedAt: "Jun 16, 2026" },
   { symbol: "HBL", name: "Himalayan Bank Ltd.", buyZone: 0, stopLoss: 0, takeProfit: 0, postedBy: "GoldenEdge", postedAt: "Jun 15, 2026" },
   { symbol: "SANDEEP", name: "Sandeep Equities Ltd.", buyZone: 0, stopLoss: 0, takeProfit: 0, postedBy: "GoldenEdge", postedAt: "Jun 14, 2026" },
-  { symbol: "UPPER", name: "Upper Tamakoshi Hydropower", buyZone: 0, stopLoss: 0, takeProfit: 0, postedBy: "GoldenEdge", postedAt: "Jun 13, 2026" },
+  { symbol: "HEI", name: "Himalayan Energy", buyZone: 0, stopLoss: 0, takeProfit: 0, postedBy: "GoldenEdge", postedAt: "Jun 13, 2026" },
   { symbol: "CHCL", name: "Chilime Hydropower", buyZone: 0, stopLoss: 0, takeProfit: 0, postedBy: "GoldenEdge", postedAt: "Jun 12, 2026" },
   { symbol: "NHPC", name: "Nepal Hydro Power Co.", buyZone: 0, stopLoss: 0, takeProfit: 0, postedBy: "GoldenEdge", postedAt: "Jun 11, 2026" },
   { symbol: "BPCL", name: "BP Cement Laghubitta", buyZone: 0, stopLoss: 0, takeProfit: 0, postedBy: "GoldenEdge", postedAt: "Jun 10, 2026" },
@@ -346,7 +346,7 @@ export default function SignalPage() {
                   Premium Trading Signals
                 </h3>
                 <p className="text-xs text-body-theme">
-                  Get 16+ expert-curated signals daily with precise buy zones, targets, and stop losses.
+                  Get 16+ expert-curated signals daily with an 80-90% win rate, precise buy zones, targets, and stop losses.
                   Unlock premium signals now!
                 </p>
               </div>

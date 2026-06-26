@@ -1317,29 +1317,46 @@ app.get("/api/sentiment/:symbol", (req, res) => {
   res.json({ symbol, overall: "neutral", score: 50, platforms: [], trendingTopics: [], dailySentiment: [] });
 });
 
-app.get("/api/daily-scrape", rateLimit, (req, res) => {
-  const { execFile } = require("child_process");
-  const scriptPath = path.join(__dirname, "..", "src", "scraper.py");
+app.get("/api/daily-scrape", rateLimit, async (req, res) => {
   const timestamp = new Date().toISOString();
   broadcast({ type: "scrape_started", timestamp });
-  execFile("python", [scriptPath, "daily"], { timeout: 120000, maxBuffer: 10 * 1024 * 1024 }, (err, stdout, stderr) => {
-    if (err) {
-      console.error("Scraper error:", err.message);
-      broadcast({ type: "scrape_error", timestamp: new Date().toISOString(), error: err.message });
-      return res.status(500).json({ error: "Scraper failed", details: err.message });
+
+  try {
+    if (supabase) {
+      console.log("[SCRAPE] Triggering live price scrape via proxy API...");
+      await scrapeLatestPrices();
+      await preloadAllCompanyData();
+      invalidateCache();
+      broadcast({ type: "scrape_complete", timestamp: new Date().toISOString(), result: { status: "success", source: "proxy_api" } });
+      return res.json({ message: "Scrape completed via proxy API", timestamp, result: { status: "success", source: "proxy_api" } });
+    } else {
+      // Fallback to Python if Supabase is not present
+      const { execFile } = require("child_process");
+      const scriptPath = path.join(__dirname, "..", "src", "scraper.py");
+      execFile("python", [scriptPath, "daily"], { timeout: 120000, maxBuffer: 10 * 1024 * 1024 }, (err, stdout, stderr) => {
+        if (err) {
+          console.error("Scraper error:", err.message);
+          broadcast({ type: "scrape_error", timestamp: new Date().toISOString(), error: err.message });
+          return res.status(500).json({ error: "Scraper failed", details: err.message });
+        }
+        let result;
+        try {
+          const lines = stdout.trim().split("\n");
+          const jsonLine = lines.find((l) => l.startsWith("{"));
+          result = jsonLine ? JSON.parse(jsonLine) : { raw: stdout };
+        } catch {
+          result = { raw: stdout };
+        }
+        broadcast({ type: "scrape_complete", timestamp: new Date().toISOString(), result });
+        invalidateCache();
+        return res.json({ message: "Scrape completed", timestamp, result });
+      });
     }
-    let result;
-    try {
-      const lines = stdout.trim().split("\n");
-      const jsonLine = lines.find((l) => l.startsWith("{"));
-      result = jsonLine ? JSON.parse(jsonLine) : { raw: stdout };
-    } catch {
-      result = { raw: stdout };
-    }
-    broadcast({ type: "scrape_complete", timestamp: new Date().toISOString(), result });
-    invalidateCache();
-    res.json({ message: "Scrape completed", timestamp, result });
-  });
+  } catch (err) {
+    console.error("Scraper failed:", err.message);
+    broadcast({ type: "scrape_error", timestamp: new Date().toISOString(), error: err.message });
+    return res.status(500).json({ error: "Scraper failed", details: err.message });
+  }
 });
 
 app.get("/api/export/:symbol/csv", (req, res) => {
@@ -2776,42 +2793,9 @@ app.get("/api/patterns/advanced/:symbol", (req, res) => {
   }
 });
 
-function scheduleAutoScrape() {
-  const { execFile } = require("child_process");
-  const now = new Date();
-  const nepalTime = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Kathmandu" }));
-  const hours = nepalTime.getHours();
-  const minutes = nepalTime.getMinutes();
-  const dayOfWeek = nepalTime.getDay();
-  const timeMinutes = hours * 60 + minutes;
-
-  if (dayOfWeek !== 0 && dayOfWeek !== 6 && timeMinutes >= 901 && timeMinutes <= 960) {
-    const lastScrapeFile = path.join(__dirname, "..", "data", ".last_scrape");
-    let lastScrape = "";
-    try { lastScrape = fs.readFileSync(lastScrapeFile, "utf-8").trim(); } catch {}
-    const todayStr = nepalTime.toISOString().split("T")[0];
-    if (lastScrape !== todayStr) {
-      console.log(`Auto-scraping daily data at ${nepalTime.toLocaleTimeString()} NPT...`);
-      const scriptPath = path.join(__dirname, "..", "src", "scraper.py");
-      execFile("python", [scriptPath, "daily"], { timeout: 120000, maxBuffer: 10 * 1024 * 1024 }, (err, stdout) => {
-        if (err) {
-          console.error("Auto-scrape error:", err.message);
-        } else {
-          try {
-            fs.writeFileSync(lastScrapeFile, todayStr);
-            invalidateCache();
-            console.log("Auto-scrape complete");
-          } catch {}
-        }
-      });
-    }
-  }
-
-  const msUntilNext = Math.max(0, (961 - timeMinutes) * 60 * 1000);
-  const checkInterval = Math.min(msUntilNext || 5 * 60 * 1000, 5 * 60 * 1000);
-  setTimeout(scheduleAutoScrape, checkInterval);
-}
-scheduleAutoScrape();
+// Note: Daily price scraping is handled by scrapeLatestPrices() via the NEPSE proxy API.
+// The Python-based scheduleAutoScrape was removed as it requires Python + requests,
+// which are not available in Render's Node.js runtime environment.
 
 // ═══════════════════════════════════════════════════════════
 // TRADING FEATURES
@@ -4254,7 +4238,39 @@ app.get("/api/floorsheet/scrape", rateLimit, async (req, res) => {
       }
     };
 
-    const firstPage = await fetchPage(1);
+    let firstPage;
+    let directFetchFailed = false;
+    try {
+      firstPage = await fetchPage(1);
+    } catch (e) {
+      console.warn("[FLOORSHEET] Direct fetch failed, trying Python scraper fallback:", e.message);
+      directFetchFailed = true;
+    }
+
+    if (directFetchFailed) {
+      // Fallback to Python scraper
+      const { execFile } = require("child_process");
+      const scriptPath = path.join(__dirname, "..", "src", "scraper.py");
+      execFile("python", [scriptPath, "floorsheet"], { timeout: 180000, maxBuffer: 20 * 1024 * 1024 }, (err, stdout, stderr) => {
+        if (err) {
+          console.error("Floorsheet python scraper fallback failed:", err.message);
+          broadcast({ type: "floorsheet_scrape_error", timestamp: new Date().toISOString(), error: `Direct fetch failed and Python fallback failed: ${err.message}` });
+          return res.status(500).json({ error: "Floorsheet scrape failed", details: `Direct API returned 401/error, and Python fallback failed: ${err.message}` });
+        }
+        
+        // Read file generated by python scraper
+        if (fs.existsSync(FLOORSHEET_FILE)) {
+          const data = JSON.parse(fs.readFileSync(FLOORSHEET_FILE, "utf8"));
+          broadcast({ type: "floorsheet_scrape_complete", timestamp: new Date().toISOString(), result: { date: data.date, totalRecords: data.totalRecords } });
+          return res.json({ message: "Floorsheet scrape completed via Python fallback", timestamp, result: { date: data.date, totalRecords: data.totalRecords } });
+        } else {
+          broadcast({ type: "floorsheet_scrape_error", timestamp: new Date().toISOString(), error: "Python scraper ran but floorsheet.json was not found" });
+          return res.status(500).json({ error: "Floorsheet scrape failed", details: "Scraper output file not found" });
+        }
+      });
+      return;
+    }
+
     const dataKey = Object.keys(firstPage).find((k) => Array.isArray(firstPage[k]));
     const firstData = dataKey ? firstPage[dataKey] : firstPage.data || firstPage.content || firstPage.records || [];
     const totalRecords = firstPage.totalRecords || firstPage.total || firstPage.totalElements || firstData.length;

@@ -28,11 +28,30 @@ export function useAdblockDetector() {
       isOnline = false;
     }
 
-    // 2. Fast Network Check (only if online to avoid false positives in offline/dev environments)
+    // 2. Same-Origin Check with ad-related URL
+    // Adblockers globally block requests to files named "adsbygoogle.js".
+    // A request to "/adsbygoogle.js" will either complete (returning a 404/200) or be blocked instantly by the adblocker.
     if (isOnline) {
       try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 1500); // 1.5s timeout
+        const timeoutId = setTimeout(() => controller.abort(), 1500);
+        await fetch("/adsbygoogle.js", {
+          method: "HEAD",
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+      } catch (err) {
+        if (err instanceof Error && err.name !== "AbortError") {
+          adblockDetected = true;
+        }
+      }
+    }
+
+    // 3. Fast Network Check (Google Ads CDN)
+    if (isOnline && !adblockDetected) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 1500);
         await fetch("https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js", {
           method: "HEAD",
           mode: "no-cors",
@@ -53,12 +72,12 @@ export function useAdblockDetector() {
       return;
     }
 
-    // 3. Bait Element Check
+    // 4. Bait Element Check
+    // We use a visible ad size (300x250) and position it in-viewport (but transparent and unclickable).
+    // Off-screen elements (e.g. left: -9999px) are ignored by some modern cosmetic engines.
     const bait = document.createElement("div");
-    bait.className = "pub_300x250 pub_300x250m pub_728x90 text-ad textAd text_ad text_ads text-ads text-ad-links text-ad-links";
-    bait.style.cssText = "width:1px;height:1px;position:absolute;left:-9999px;top:-9999px;";
-    bait.setAttribute("data-ad-client", "ca-pub-test");
-    bait.setAttribute("data-ad-slot", "1234567890");
+    bait.className = "adsbygoogle ad-placement doubleclick-ad pub_300x250";
+    bait.style.cssText = "width:300px;height:250px;opacity:0.01;position:absolute;pointer-events:none;z-index:-1;";
     document.body.appendChild(bait);
 
     // Wait 500ms for cosmetic filters to apply
@@ -89,25 +108,18 @@ export function useAdblockDetector() {
       return;
     }
 
-    // 4. Try to push an ad to check if adsbygoogle is active and functional (only if it loaded)
-    const adsbygoogle = (window as any).adsbygoogle;
-    if (adsbygoogle && Array.isArray(adsbygoogle)) {
-      try {
-        const testEl = document.createElement("ins");
-        testEl.className = "adsbygoogle";
-        testEl.style.display = "none";
-        document.body.appendChild(testEl);
-        
-        try {
-          adsbygoogle.push({});
-        } catch {
+    // 5. Check if Google Adsense script loaded and executed (Adblockers often inject a surrogate/dummy script)
+    // The real Google Adsense script defines "window.adsbygoogle.loaded = true" once it executes.
+    if (isOnline) {
+      const adsbygoogle = (window as any).adsbygoogle;
+      if (!adsbygoogle || adsbygoogle.loaded !== true) {
+        // Wait another 1.5 seconds just in case it is loading slowly
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+        const secondCheck = (window as any).adsbygoogle;
+        if (!secondCheck || secondCheck.loaded !== true) {
           adblockDetected = true;
-        } finally {
-          if (testEl.parentNode) {
-            testEl.parentNode.removeChild(testEl);
-          }
         }
-      } catch {}
+      }
     }
 
     setDetected(adblockDetected);

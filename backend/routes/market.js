@@ -15,12 +15,18 @@ module.exports = function setupMarketRoutes(app, deps) {
       for (const [symbol, records] of companyDataCache) {
         if (!records || records.length === 0) continue;
         const latest = records[records.length - 1];
+        const close = parseFloat(latest.close) || 0;
+        const open = parseFloat(latest.open) || close;
+        const percentChange = parseFloat(latest.per_change) || 0;
+        const change = close - open;
         companies.push({
           symbol,
           category: CATEGORY_MAP[symbol] || "Other",
           records: records.length,
-          latestClose: parseFloat(latest.close) || null,
+          latestClose: close || null,
           latestDate: latest.published_date,
+          change: Number.isFinite(change) ? Math.round(change * 100) / 100 : 0,
+          percentChange: Number.isFinite(percentChange) ? Math.round(percentChange * 100) / 100 : 0,
         });
       }
       res.json(companies);

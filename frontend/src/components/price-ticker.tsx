@@ -60,25 +60,32 @@ export default function PriceTicker() {
         ws.onmessage = (e) => {
           try {
             const msg = JSON.parse(e.data);
-            if (msg.type === "price_update" && msg.symbol) {
-              setItems((prev) => {
-                const idx = prev.findIndex((i) => i.symbol === msg.symbol);
-                const updated = {
-                  symbol: msg.symbol,
-                  price: msg.price ?? prev[idx]?.price ?? 0,
-                  change: msg.change ?? prev[idx]?.change ?? 0,
-                  changePercent: msg.changePercent ?? prev[idx]?.changePercent ?? 0,
-                  volume: msg.volume ?? prev[idx]?.volume ?? 0,
-                };
-                if (idx >= 0) {
+            if (msg.type === "price_update") {
+              const updates = Array.isArray(msg.data) ? msg.data : (msg.symbol ? [msg] : []);
+              if (updates.length > 0) {
+                setItems((prev) => {
                   const next = [...prev];
-                  next[idx] = updated;
+                  let updatedSymbol = null;
+                  for (const update of updates) {
+                    const idx = next.findIndex((i) => i.symbol === update.symbol);
+                    if (idx >= 0) {
+                      next[idx] = {
+                        symbol: update.symbol,
+                        price: update.price ?? next[idx].price ?? 0,
+                        change: update.change ?? next[idx].change ?? 0,
+                        changePercent: update.changePercent ?? next[idx].changePercent ?? 0,
+                        volume: update.volume ?? next[idx].volume ?? 0,
+                      };
+                      updatedSymbol = update.symbol;
+                    }
+                  }
+                  if (updatedSymbol) {
+                    setFlash(updatedSymbol);
+                    setTimeout(() => setFlash(null), 600);
+                  }
                   return next;
-                }
-                return [...prev, updated];
-              });
-              setFlash(msg.symbol);
-              setTimeout(() => setFlash(null), 600);
+                });
+              }
             }
           } catch {}
         };
@@ -135,9 +142,7 @@ export default function PriceTicker() {
                   <ArrowUpRight className="h-2.5 w-2.5" />
                 ) : dir === "down" ? (
                   <ArrowDownRight className="h-2.5 w-2.5" />
-                ) : (
-                  <Minus className="h-2.5 w-2.5" />
-                )}
+                ) : null}
                 {isPositive ? "+" : ""}
                 {displayChange}
               </span>

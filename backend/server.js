@@ -184,6 +184,7 @@ function startLiveFeed() {
           lastClose: close,
           price: close,
           change: Math.round(change * 100) / 100,
+          changePercent: Math.round(changePct * 100) / 100,
           volume: parseInt(latest.traded_quantity) || 0,
           time: latest.published_date || new Date().toISOString(),
         };
@@ -2127,7 +2128,7 @@ function broadcastPriceUpdate() {
           lastClose: close,
           price: close,
           change: Math.round(change * 100) / 100,
-          changePct: Math.round(changePct * 100) / 100,
+          changePercent: Math.round(changePct * 100) / 100,
           volume: parseInt(latest.traded_quantity) || 0,
           time: latest.published_date || new Date().toISOString(),
         };

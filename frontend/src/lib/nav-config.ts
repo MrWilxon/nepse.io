@@ -62,6 +62,7 @@ export function getNavCategories(t: (key: string) => string): NavCategory[] {
       icon: Layers,
       items: [
         { href: "/fundamentals", label: t("nav.fundamentals"), icon: TrendingUp },
+        { href: "/fundamental-overview", label: t("nav.fundamentalOverview"), icon: FileText },
         { href: "/floorsheet", label: t("nav.floorSheet"), icon: FileText },
         { href: "/earnings", label: t("nav.earnings"), icon: FileText },
         { href: "/announcements", label: t("nav.announcements"), icon: Bell },
